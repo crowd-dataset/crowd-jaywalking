@@ -372,7 +372,6 @@ class Youtube_Helper:
         video_clip = VideoFileClip(input_path).subclip(start_time, end_time)
 
         # Write the subclip to the specified output file using the 'libx264' codec for video and 'aac' for audio.
-        os.makedirs(output_path, exist_ok=True)  # check if folder exists
         video_clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
 
         # Close the video clip to release any resources used.
@@ -1031,6 +1030,7 @@ class Youtube_Helper:
     @staticmethod
     def save_event_video(video_id, time, yolo_overlay=False, folder="event_videos"):
         folder = os.path.join(common.output_dir, folder)
+        # Create folder if it does not exist
         os.makedirs(folder, exist_ok=True)
 
         # find video

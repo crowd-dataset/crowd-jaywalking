@@ -24,9 +24,9 @@ The video label is `JAYWALKING` when at least one valid crossing person is class
 2. The frozen JAAD supervised classifier scores every usable person track using only inference safe tracking and motion features.
 3. The rule detector is retained as an audit feature and can be selected as an explicit fallback, but it does not override classifier decisions in classifier mode.
 4. The selected crossing interval is used to locate evidence for the target person.
-5. Four chronological moments centred on the crossing transition are sampled for every accepted person.
-6. Each moment produces a full scene with a red target box and an enlarged person crop.
-7. Qwen2.5 VL runs locally through Hugging Face Transformers and reports structured visible crossing context.
+5. Six chronological moments centred on the crossing transition are sampled for every accepted person.
+6. Each moment produces a full scene, target detail, road path, and two overlapping traffic control views. The target has a red box and its footpoint trajectory is yellow.
+7. A validated Hugging Face VLM answers three focused questions: road markings, traffic controls, and evidence visibility.
 8. A deterministic policy produces the person and video labels.
 
 The configured tracker is BoT SORT with ReID enabled and the exact parameters in `configs/botsort.yaml`.
@@ -46,6 +46,8 @@ The committed v1.5 configuration models the ego corridor as a trapezoid that wid
 │   ├── annotations_with_splits.csv
 │   └── videos/
 ├── prepare_splits.py
+├── prepare_jaad_context.py
+├── compare_jaad_context_models.py
 ├── run_one_video.py
 ├── run_evaluation.py
 ├── run_crowd_analysis.py
@@ -104,7 +106,11 @@ Edit `config` for local paths and evaluation settings. If `config` does not exis
   "tracking_model": "yolo26x.pt",
   "bbox_tracker": "configs/botsort.yaml",
   "min_confidence": 0.25,
-  "vlm_model": "Qwen/Qwen2.5-VL-7B-Instruct"
+  "vlm_model": "Qwen/Qwen3-VL-8B-Instruct",
+  "vlm_comparison_models": [
+    "Qwen/Qwen3-VL-8B-Instruct",
+    "google/gemma-4-12B-it"
+  ]
 }
 ```
 
@@ -125,7 +131,7 @@ $env:HF_HOME = "D:\huggingface-cache"
 
 You can also set `vlm_cache_dir` in `config` to an absolute path. Leave it as `null` to use the normal Hugging Face cache.
 
-The default VLM is `Qwen/Qwen2.5-VL-7B-Instruct`. Its weights are large, so allow substantial disk space and GPU or system memory. `device_map: "auto"` lets Accelerate place the model on the available GPU and CPU resources. The first inference downloads the VLM weights from Hugging Face. YOLO26x weights are also downloaded automatically on first use by Ultralytics.
+The default candidate VLM is `Qwen/Qwen3-VL-8B-Instruct`. Validation compares it with `google/gemma-4-12B-it`, loading one model at a time. Their weights are large, so allow substantial disk space and GPU or system memory. `device_map: "auto"` lets Accelerate place each model on the available GPU and CPU resources. The first inference downloads the weights from Hugging Face. YOLO26x weights are also downloaded automatically on first use by Ultralytics.
 
 ### 4. Prepare the dataset
 
@@ -195,6 +201,28 @@ uv run python .\run_evaluation.py
 
 The default configuration evaluates `development`. Results are saved after every video, so an interrupted run can resume safely.
 
+### 9. Compare the two context models
+
+Keep `jaad_context_split` set to `val`. Version 4 adds a target trajectory, a road-path crop, and overlapping high-resolution traffic-control crops. Regenerate the evidence before running the model; existing manual labels are preserved:
+
+```powershell
+uv run python -u .\prepare_jaad_context.py
+```
+
+Complete the context fields in `results\jaad_context_audit\val\context_annotations.csv`, then run both VLMs on those exact same events:
+
+```powershell
+uv run python -u .\compare_jaad_context_models.py
+```
+
+The models are loaded sequentially. Selection uses the macro F1 of the derived `permission_present` observable first. This value combines only the four visible permission cues and is not a legal or jaywalking label. Ties use mean macro F1 over fields containing at least two ground truth classes, then the weakest field F1 and mean accuracy. The script refuses to select a model on the `test` split. The selected model is recorded in:
+
+```text
+results\jaad_vlm_comparison_v4\val\selected_model.json
+```
+
+Copy its `selected_model` value to `vlm_model` in `config` before the final locked context evaluation and CROWD analysis.
+
 ## Changing evaluation splits
 
 Change both settings before evaluating another split:
@@ -249,7 +277,7 @@ Tune parameters only with development data. Record every configuration and compa
 * One crossing event is produced per continuous person track segment.
 * The fixed central corridor can miss crossings that occur entirely away from the centre of the image; inspect development videos with no candidate before changing this assumption.
 * VLM context quality depends on infrastructure being visible in the sampled frames.
-* The default 7B VLM can be slow or exceed memory on machines without a suitable GPU.
+* Version 4 makes three focused inference calls per event. This is slower than the earlier combined prompt and can exceed memory on machines without a suitable GPU.
 * JAAD test performance estimates crossing detection, not the final jaywalking policy on CROWD.
 * CROWD context predictions still require a stratified manual audit before population estimates are reported.
 

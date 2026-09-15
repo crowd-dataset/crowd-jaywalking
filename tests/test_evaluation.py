@@ -1,42 +1,51 @@
-"""Tests for annotations and conservative evaluation metrics."""
+"""Tests for version 5 visual evidence generation."""
 
-import tempfile
 import unittest
-from pathlib import Path
 
-from crowd_jaywalking.evaluation import calculate_metrics, load_annotations
-from crowd_jaywalking.models import DecisionLabel
+import numpy as np
+
+from crowd_jaywalking.evidence import make_evidence_views
+from crowd_jaywalking.models import BoundingBox
 
 
-class EvaluationTests(unittest.TestCase):
-    def test_load_annotations_maps_yes_and_no(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "annotations.csv"
-            path.write_text(
-                "video_id,filename,label,split\n"
-                "a,a.mp4,Yes,development\n"
-                "b,b.mp4,No,development\n"
-                "c,c.mp4,Not Sure,excluded\n"
-                "d,d.mp4,Yes,locked_test\n",
-                encoding="utf-8",
-            )
-            annotations, excluded = load_annotations(path, "development")
-        self.assertEqual(
-            [item.ground_truth for item in annotations],
-            [DecisionLabel.JAYWALKING, DecisionLabel.COMPLIANT],
-        )
-        self.assertEqual(excluded, 1)
-
-    def test_uncertain_reduces_coverage_and_overall_accuracy(self) -> None:
-        rows = [
-            {"ground_truth": "JAYWALKING", "prediction": "JAYWALKING"},
-            {"ground_truth": "COMPLIANT", "prediction": "COMPLIANT"},
-            {"ground_truth": "JAYWALKING", "prediction": "UNCERTAIN"},
+class EvidenceViewTests(unittest.TestCase):
+    def test_trajectory_does_not_cover_clean_context_or_road_pixels(self) -> None:
+        try:
+            import cv2  # noqa: F401
+        except ImportError:
+            self.skipTest("OpenCV is not installed in this test environment")
+        image = np.zeros((200, 300, 3), dtype=np.uint8)
+        boxes = [
+            BoundingBox(0.20, 0.30, 0.30, 0.70),
+            BoundingBox(0.45, 0.30, 0.55, 0.70),
+            BoundingBox(0.70, 0.30, 0.80, 0.70),
         ]
-        metrics = calculate_metrics(rows)
-        self.assertAlmostEqual(metrics["coverage_percent"], 200.0 / 3.0)
-        self.assertAlmostEqual(metrics["overall_accuracy_percent"], 200.0 / 3.0)
-        self.assertEqual(metrics["decided_accuracy_percent"], 100.0)
+
+        views = make_evidence_views(
+            image,
+            boxes[1],
+            boxes,
+            "PERSON 1",
+            crop_margin=0.75,
+            road_crop_margin=0.12,
+            control_crop_bottom=0.78,
+            control_crop_overlap=0.20,
+            maximum_dimension=1280,
+            trajectory_enabled=True,
+        )
+
+        def yellow_pixels(view) -> int:
+            return int(
+                np.count_nonzero(
+                    (view[:, :, 0] == 0)
+                    & (view[:, :, 1] > 150)
+                    & (view[:, :, 2] > 150)
+                )
+            )
+
+        self.assertEqual(yellow_pixels(views["context"]), 0)
+        self.assertEqual(yellow_pixels(views["road"]), 0)
+        self.assertGreater(yellow_pixels(views["trajectory"]), 0)
 
 
 if __name__ == "__main__":

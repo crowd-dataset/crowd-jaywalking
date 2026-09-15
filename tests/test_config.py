@@ -115,6 +115,36 @@ class ProjectConfigTests(unittest.TestCase):
         self.assertFalse(settings["fallback_to_rules"])
         self.assertEqual(settings["min_track_frames"], 5)
 
+    def test_evidence_version_five_settings_have_backwards_compatible_defaults(self) -> None:
+        raw = json.loads(self.template)
+        for name in (
+            "evidence_trajectory_enabled",
+            "evidence_road_crop_margin",
+            "evidence_control_crop_bottom",
+            "evidence_control_crop_overlap",
+            "vlm_task_max_frames",
+            "vlm_prompt_mode",
+        ):
+            raw.pop(name)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "config").write_text(json.dumps(raw), encoding="utf-8")
+            previous = Path.cwd()
+            try:
+                os.chdir(root)
+                config = ProjectConfig.load()
+                evidence = config.evidence_settings()
+                vlm = config.vlm_settings()
+            finally:
+                os.chdir(previous)
+
+        self.assertTrue(evidence["trajectory_enabled"])
+        self.assertEqual(evidence["road_crop_margin"], 0.12)
+        self.assertEqual(evidence["control_crop_bottom"], 0.78)
+        self.assertEqual(evidence["control_crop_overlap"], 0.20)
+        self.assertEqual(vlm["task_max_frames"], 4)
+        self.assertEqual(vlm["prompt_mode"], "baseline_v3")
+
     def test_crowd_settings_have_backwards_compatible_defaults(self) -> None:
         raw = json.loads(self.template)
         for name in (
@@ -155,6 +185,7 @@ class ProjectConfigTests(unittest.TestCase):
     def test_vlm_comparison_settings_have_backwards_compatible_defaults(self) -> None:
         raw = json.loads(self.template)
         raw.pop("vlm_comparison_models")
+        raw.pop("vlm_comparison_prompt_modes")
         raw.pop("vlm_comparison_results")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -170,7 +201,28 @@ class ProjectConfigTests(unittest.TestCase):
             settings["models"],
             ["Qwen/Qwen3-VL-8B-Instruct", "google/gemma-4-12B-it"],
         )
-        self.assertEqual(settings["results"].name, "jaad_vlm_comparison_v1")
+        self.assertEqual(
+            settings["prompt_modes"],
+            ["baseline_v3", "focused_v5"],
+        )
+        self.assertEqual(settings["results"].name, "jaad_vlm_comparison_v5")
+
+    def test_context_sampling_settings_have_backwards_compatible_defaults(self) -> None:
+        raw = json.loads(self.template)
+        raw.pop("jaad_context_sample_size")
+        raw.pop("jaad_context_sampling_seed")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "config").write_text(json.dumps(raw), encoding="utf-8")
+            previous = Path.cwd()
+            try:
+                os.chdir(root)
+                settings = ProjectConfig.load().jaad_context_settings()
+            finally:
+                os.chdir(previous)
+
+        self.assertEqual(settings["sample_size"], 120)
+        self.assertEqual(settings["sampling_seed"], 42)
 
 
 if __name__ == "__main__":

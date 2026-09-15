@@ -69,7 +69,22 @@ OPTIONAL_VLM_COMPARISON_DEFAULTS = {
         "Qwen/Qwen3-VL-8B-Instruct",
         "google/gemma-4-12B-it",
     ],
-    "vlm_comparison_results": "results/jaad_vlm_comparison_v1",
+    "vlm_comparison_prompt_modes": ["baseline_v3", "focused_v5"],
+    "vlm_comparison_results": "results/jaad_vlm_comparison_v5",
+}
+
+OPTIONAL_EVIDENCE_DEFAULTS = {
+    "evidence_trajectory_enabled": True,
+    "evidence_road_crop_margin": 0.12,
+    "evidence_control_crop_bottom": 0.78,
+    "evidence_control_crop_overlap": 0.20,
+    "vlm_task_max_frames": 4,
+    "vlm_prompt_mode": "baseline_v3",
+}
+
+OPTIONAL_CONTEXT_AUDIT_DEFAULTS = {
+    "jaad_context_sample_size": 120,
+    "jaad_context_sampling_seed": 42,
 }
 
 CROSSING_KEYS = (
@@ -287,11 +302,38 @@ class ProjectConfig:
             "crop_margin": self.get("evidence_crop_margin"),
             "max_dimension": self.get("evidence_max_dimension"),
             "jpeg_quality": self.get("evidence_jpeg_quality"),
+            "trajectory_enabled": self.raw.get(
+                "evidence_trajectory_enabled",
+                OPTIONAL_EVIDENCE_DEFAULTS["evidence_trajectory_enabled"],
+            ),
+            "road_crop_margin": self.raw.get(
+                "evidence_road_crop_margin",
+                OPTIONAL_EVIDENCE_DEFAULTS["evidence_road_crop_margin"],
+            ),
+            "control_crop_bottom": self.raw.get(
+                "evidence_control_crop_bottom",
+                OPTIONAL_EVIDENCE_DEFAULTS["evidence_control_crop_bottom"],
+            ),
+            "control_crop_overlap": self.raw.get(
+                "evidence_control_crop_overlap",
+                OPTIONAL_EVIDENCE_DEFAULTS["evidence_control_crop_overlap"],
+            ),
         }
 
-    def vlm_settings(self, model_id: str | None = None) -> dict[str, Any]:
+    def vlm_settings(
+        self,
+        model_id: str | None = None,
+        prompt_mode: str | None = None,
+    ) -> dict[str, Any]:
         return {
             "model_id": model_id or self.get("vlm_model"),
+            "prompt_mode": prompt_mode
+            or str(
+                self.raw.get(
+                    "vlm_prompt_mode",
+                    OPTIONAL_EVIDENCE_DEFAULTS["vlm_prompt_mode"],
+                )
+            ),
             "device_map": self.get("vlm_device_map"),
             "torch_dtype": self.get("vlm_torch_dtype"),
             "attn_implementation": self.get("vlm_attn_implementation"),
@@ -300,6 +342,10 @@ class ProjectConfig:
             "min_pixels": self.get("vlm_min_pixels"),
             "max_pixels": self.get("vlm_max_pixels"),
             "max_new_tokens": self.get("vlm_max_new_tokens"),
+            "task_max_frames": self.raw.get(
+                "vlm_task_max_frames",
+                OPTIONAL_EVIDENCE_DEFAULTS["vlm_task_max_frames"],
+            ),
         }
 
     def vlm_comparison_settings(self) -> dict[str, Any]:
@@ -311,11 +357,36 @@ class ProjectConfig:
         )
         if not isinstance(models_value, list):
             raise ValueError("vlm_comparison_models must be a list")
+        prompt_modes_value = self.raw.get(
+            "vlm_comparison_prompt_modes",
+            OPTIONAL_VLM_COMPARISON_DEFAULTS["vlm_comparison_prompt_modes"],
+        )
+        if not isinstance(prompt_modes_value, list):
+            raise ValueError("vlm_comparison_prompt_modes must be a list")
         return {
             "models": [str(item).strip() for item in models_value],
+            "prompt_modes": [str(item).strip().lower() for item in prompt_modes_value],
             "results": self._resolved_optional_path(
                 "vlm_comparison_results",
                 OPTIONAL_VLM_COMPARISON_DEFAULTS["vlm_comparison_results"],
+            ),
+        }
+
+    def jaad_context_settings(self) -> dict[str, int]:
+        """Return reproducible context audit sampling settings."""
+
+        return {
+            "sample_size": int(
+                self.raw.get(
+                    "jaad_context_sample_size",
+                    OPTIONAL_CONTEXT_AUDIT_DEFAULTS["jaad_context_sample_size"],
+                )
+            ),
+            "sampling_seed": int(
+                self.raw.get(
+                    "jaad_context_sampling_seed",
+                    OPTIONAL_CONTEXT_AUDIT_DEFAULTS["jaad_context_sampling_seed"],
+                )
             ),
         }
 
@@ -407,6 +478,10 @@ class ProjectConfig:
         for key, default in OPTIONAL_CROWD_DEFAULTS.items():
             effective_config.setdefault(key, default)
         for key, default in OPTIONAL_VLM_COMPARISON_DEFAULTS.items():
+            effective_config.setdefault(key, default)
+        for key, default in OPTIONAL_EVIDENCE_DEFAULTS.items():
+            effective_config.setdefault(key, default)
+        for key, default in OPTIONAL_CONTEXT_AUDIT_DEFAULTS.items():
             effective_config.setdefault(key, default)
         payload = {
             "config": effective_config,
@@ -508,6 +583,23 @@ class ProjectConfig:
             raise ValueError("Every evidence sample position must be between 0 and 1")
         if float(self.get("evidence_context_seconds")) < 0.0:
             raise ValueError("evidence_context_seconds must be non-negative")
+        trajectory_enabled = self.raw.get(
+            "evidence_trajectory_enabled",
+            OPTIONAL_EVIDENCE_DEFAULTS["evidence_trajectory_enabled"],
+        )
+        if not isinstance(trajectory_enabled, bool):
+            raise ValueError("evidence_trajectory_enabled must be true or false")
+        if not 0.0 <= float(
+            self.raw.get(
+                "evidence_road_crop_margin",
+                OPTIONAL_EVIDENCE_DEFAULTS["evidence_road_crop_margin"],
+            )
+        ) <= 0.5:
+            raise ValueError("evidence_road_crop_margin must be between 0 and 0.5")
+        for name in ("evidence_control_crop_bottom", "evidence_control_crop_overlap"):
+            value = float(self.raw.get(name, OPTIONAL_EVIDENCE_DEFAULTS[name]))
+            if not 0.0 < value <= 1.0:
+                raise ValueError(f"{name} must be greater than 0 and at most 1")
 
         if not str(self.get("tracking_model")).strip():
             raise ValueError("tracking_model must name a YOLO model")
@@ -522,6 +614,25 @@ class ProjectConfig:
             raise ValueError("VLM pixel limits must satisfy 0 < min_pixels <= max_pixels")
         if int(self.get("vlm_max_new_tokens")) <= 0:
             raise ValueError("vlm_max_new_tokens must be positive")
+        if int(
+            self.raw.get(
+                "vlm_task_max_frames",
+                OPTIONAL_EVIDENCE_DEFAULTS["vlm_task_max_frames"],
+            )
+        ) <= 0:
+            raise ValueError("vlm_task_max_frames must be positive")
+
+        valid_prompt_modes = {"baseline_v3", "focused_v5"}
+        prompt_mode = str(
+            self.raw.get(
+                "vlm_prompt_mode",
+                OPTIONAL_EVIDENCE_DEFAULTS["vlm_prompt_mode"],
+            )
+        ).strip().lower()
+        if prompt_mode not in valid_prompt_modes:
+            raise ValueError(
+                "vlm_prompt_mode must be one of: baseline_v3, focused_v5"
+            )
 
         comparison = self.vlm_comparison_settings()
         if len(comparison["models"]) < 2:
@@ -530,6 +641,14 @@ class ProjectConfig:
             raise ValueError("vlm_comparison_models must not contain empty model IDs")
         if len(set(comparison["models"])) != len(comparison["models"]):
             raise ValueError("vlm_comparison_models must contain distinct model IDs")
+        if not comparison["prompt_modes"]:
+            raise ValueError("vlm_comparison_prompt_modes must not be empty")
+        if len(set(comparison["prompt_modes"])) != len(comparison["prompt_modes"]):
+            raise ValueError("vlm_comparison_prompt_modes must contain distinct values")
+        if any(mode not in valid_prompt_modes for mode in comparison["prompt_modes"]):
+            raise ValueError(
+                "vlm_comparison_prompt_modes may contain only baseline_v3 and focused_v5"
+            )
 
         self.path("jaad_root")
         self.path("jaad_benchmark_results")
@@ -543,6 +662,8 @@ class ProjectConfig:
             raise ValueError("jaad_min_match_frames must be positive")
         if not 0.0 < float(self.get("jaad_min_track_coverage")) <= 1.0:
             raise ValueError("jaad_min_track_coverage must be greater than 0 and at most 1")
+        if self.jaad_context_settings()["sample_size"] < 0:
+            raise ValueError("jaad_context_sample_size must be zero or positive")
 
         classifier = self.crossing_classifier_settings()
         if classifier["decision_mode"] not in {"classifier", "rules"}:

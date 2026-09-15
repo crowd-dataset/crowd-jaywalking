@@ -125,6 +125,10 @@ class EvidenceImage:
     frame_index: int
     context_path: Path
     focus_path: Path
+    road_path: Path | None = None
+    trajectory_path: Path | None = None
+    control_left_path: Path | None = None
+    control_right_path: Path | None = None
 
 
 @dataclass(frozen=True)

@@ -12,8 +12,21 @@ from .models import ContextAssessment, EvidenceImage, Ternary, Visibility
 
 BASELINE_PROMPT_VERSION = "global-context-v3"
 FOCUSED_PROMPT_VERSION = "global-context-v5"
+ZEBRA_LIGHT_PROMPT_VERSION = "zebra-light-v1"
+ZEBRA_LIGHT_V2_PROMPT_VERSION = "zebra-light-v2"
+ZEBRA_LIGHT_V3_PROMPT_VERSION = "zebra-light-v3"
+ZEBRA_LIGHT_V4_PROMPT_VERSION = "zebra-light-v4"
 PROMPT_VERSION = FOCUSED_PROMPT_VERSION
-PROMPT_MODES = ("baseline_v3", "focused_v5")
+PROMPT_MODES = (
+    "baseline_v3",
+    "focused_v5",
+    "zebra_light_v1",
+    "zebra_light_v2",
+    "zebra_light_v3",
+    "zebra_light_v4",
+)
+# Signs and signal heads are static, so the controls task needs fewer moments.
+CONTROL_TASK_FRAMES = 2
 
 BASELINE_CONTEXT_PROMPT = """You are inspecting one tracked pedestrian crossing event.
 
@@ -104,11 +117,6 @@ Return exactly:
 
 An authorised crossing sign must be a physical signboard or sign assembly with a visible pedestrian symbol or text that designates this crossing. Zebra stripes, painted road symbols, lane markings, and any other paint on the road are never signs. Generic warning, parking, speed, and vehicle direction signs are NO. crossing_guard_permission is YES only when an identifiable authorised person visibly directs this target to cross; merely being present is NO."""
 
-# Kept for code that imported the version 4 combined control prompt.
-TRAFFIC_CONTROL_PROMPT = "\n\n".join(
-    (PEDESTRIAN_SIGNAL_PROMPT, AUTHORISATION_PROMPT)
-)
-
 VISIBILITY_PROMPT = f"""{SHARED_INSTRUCTIONS}
 
 Task: rate whether the supplied evidence supports reliable observable context decisions for this target.
@@ -121,6 +129,186 @@ Return exactly:
 }}
 
 CLEAR means the target trajectory and relevant crossing context are sufficiently visible for confident decisions. PARTIAL means the event is identifiable but occlusion, distance, blur, or framing prevents at least one confident context decision. INSUFFICIENT means the evidence cannot establish the target trajectory or inspect its crossing context."""
+
+ZEBRA_LIGHT_PROMPT = """You are inspecting one tracked pedestrian crossing a road, seen from a vehicle dashcam.
+The images are chronological moments. The target pedestrian has a RED box labelled TARGET. TARGET ROAD AREA views show the road the target crosses. CONTROL SEARCH views enlarge the upper scene where traffic lights usually are.
+
+Report only what is visible on the stretch of road the target crosses: the road between the kerbs on the target's path, and about one car length to either side of that path. Ignore features on other streets or far along the road. Do not decide whether the person is jaywalking.
+
+Return one JSON object with exactly these keys:
+{
+  "zebra_crossing": "YES|NO|UNCERTAIN",
+  "traffic_light": "YES|NO|UNCERTAIN",
+  "visibility": "CLEAR|PARTIAL|INSUFFICIENT",
+  "evidence_summary": "one short sentence"
+}
+
+zebra_crossing:
+- YES when painted pedestrian crossing markings are on that stretch of road: zebra stripes, a ladder pattern, or two parallel painted lines bounding a crosswalk. The target may walk slightly beside the markings.
+- NO when the road surface of that stretch is visible and has no such markings. Lane lines, centre lines, stop lines, arrows, text, and parking bays are not crossings.
+- UNCERTAIN only when that road surface is hidden, too dark, or too blurred to judge.
+
+traffic_light:
+- YES when any traffic signal head, for vehicles or for pedestrians, of any colour, on a pole, mast arm, or overhead wire, controls the junction or crossing on that stretch of road.
+- NO when the surroundings of that stretch are visible and no signal head is there. A signal at a different junction further along the road is NO.
+- UNCERTAIN only when the surroundings of that stretch cannot be seen well enough to judge.
+
+visibility:
+- CLEAR when the road surface and surroundings of the crossing location are clearly visible in at least one image.
+- PARTIAL when only part of them is visible.
+- INSUFFICIENT when neither can be judged.
+
+Output JSON only."""
+
+# Version 2 adds a full resolution crossing close-up, reports pedestrian crossing
+# signs, and prefers UNCERTAIN over NO for faint markings, because the positive
+# answer (no zebra, no light) must be precise.
+ZEBRA_LIGHT_V2_PROMPT = """You are inspecting one tracked pedestrian crossing a road, seen from a vehicle dashcam.
+The images are chronological moments. The target pedestrian has a RED box. CROSSING CLOSE-UP views are enlarged, full resolution crops of the road around the target's feet and path; look there for painted markings. CONTROL SEARCH views enlarge the upper scene where traffic lights and signs usually are.
+
+Report only what is visible at the place where the target crosses: the road between the kerbs on the target's path, and about one car length to either side of that path. Ignore features on other streets or far along the road. Do not decide whether the person is jaywalking.
+
+Return one JSON object with exactly these keys:
+{
+  "zebra_crossing": "YES|NO|UNCERTAIN",
+  "traffic_light": "YES|NO|UNCERTAIN",
+  "crossing_sign": "YES|NO|UNCERTAIN",
+  "visibility": "CLEAR|PARTIAL|INSUFFICIENT",
+  "evidence_summary": "one short sentence"
+}
+
+zebra_crossing:
+- YES when painted pedestrian crossing markings are on the road at that place: zebra stripes, a ladder pattern, or two parallel painted lines bounding a crosswalk, even if faded, partly covered, or small in the distance. The target may walk beside the markings.
+- NO only when the road surface at that place is clearly visible in a CROSSING CLOSE-UP and has no such markings. Lane lines, centre lines, stop lines, arrows, text, and parking bays are not crossings.
+- UNCERTAIN when faint, worn, distant, or partly hidden stripes might be a crossing, or when the road surface is hidden, dark, or blurred.
+
+traffic_light:
+- YES when any traffic signal head, for vehicles or for pedestrians, of any colour, on a pole, mast arm, or overhead wire, controls the junction or crossing at that place.
+- NO when the surroundings of that place are visible and no signal head is there. A signal at a different junction further along the road is NO.
+- UNCERTAIN when the surroundings cannot be seen well enough to judge.
+
+crossing_sign:
+- YES when a road sign marking a pedestrian crossing is at that place, such as a sign with a walking person, often yellow, blue, or white.
+- NO when the surroundings are visible and there is no such sign. Other road signs are NO.
+- UNCERTAIN when a sign is there but cannot be read.
+
+visibility:
+- CLEAR when the road surface and surroundings of the crossing place are clearly visible in at least one image.
+- PARTIAL when only part of them is visible.
+- INSUFFICIENT when neither can be judged.
+
+Output JSON only."""
+
+# Version 3 splits the question in two. Markings use a close-up and the whole road
+# ahead; signals and signs use near native resolution tiles of the upper scene.
+MARKINGS_V3_PROMPT = """You are inspecting one tracked pedestrian crossing a road, seen from a vehicle dashcam.
+The images are chronological moments. The target pedestrian has a RED box. CROSSING CLOSE-UP views are enlarged crops of the road around the target's feet and path. ROAD AHEAD views show the whole road between the camera and the target.
+
+Task: decide whether painted pedestrian crossing markings are on the road the target crosses, within about 20 metres of the target's path, including between the camera and the target. Ignore side streets. Do not decide whether the person is jaywalking.
+
+Return one JSON object with exactly these keys:
+{
+  "zebra_crossing": "YES|NO|UNCERTAIN",
+  "visibility": "CLEAR|PARTIAL|INSUFFICIENT",
+  "evidence_summary": "one short sentence"
+}
+
+zebra_crossing:
+- YES when zebra stripes, a ladder pattern, or two parallel painted lines bounding a crosswalk are on that road within about 20 metres of the target's path, even if faded, partly covered by snow or vehicles, or small in the distance.
+- NO only when that road surface is clearly visible and has no such markings. Lane lines, centre lines, stop lines, arrows, text, and parking bays are not crossings.
+- UNCERTAIN when faint, worn, or partly hidden stripes might be a crossing, or when the road surface is hidden, dark, or blurred.
+
+visibility:
+- CLEAR when the road surface around the target's path is clearly visible in at least one image.
+- PARTIAL when only part of it is visible.
+- INSUFFICIENT when it cannot be judged.
+
+Output JSON only."""
+
+CONTROLS_V3_PROMPT = """You are inspecting one tracked pedestrian crossing a road, seen from a vehicle dashcam.
+The FULL SCENE views show the whole image; the target pedestrian has a RED box. CONTROL TILE views are enlarged, overlapping crops of the upper part of the same images, where traffic lights and road signs usually are.
+
+Task: decide whether traffic lights or pedestrian crossing signs are at the place where the target crosses, within about 20 metres of the target's path, on the road the target crosses. Ignore side streets and junctions far along the road. Do not decide whether the person is jaywalking.
+
+Return one JSON object with exactly these keys:
+{
+  "traffic_light": "YES|NO|UNCERTAIN",
+  "crossing_sign": "YES|NO|UNCERTAIN",
+  "evidence_summary": "one short sentence"
+}
+
+traffic_light:
+- YES when any traffic signal head, for vehicles or pedestrians, of any colour, on a pole, mast arm, or overhead wire, is within about 20 metres of the target's path.
+- NO when that area is visible and has no signal head. A signal at a junction clearly further along the road is NO.
+- UNCERTAIN when a possible signal head cannot be made out.
+
+crossing_sign:
+- YES when a road sign marking a pedestrian crossing, usually showing a walking person, often blue, yellow, or white, is within about 20 metres of the target's path. Such signs are small; check every CONTROL TILE.
+- NO when that area is visible and has no such sign. Other road signs are NO.
+- UNCERTAIN when a sign is there but cannot be read.
+
+Output JSON only."""
+
+CROSSING_CHECK_PROMPT_VERSION = "crossing-check-v1"
+CROSSING_CHECK_PROMPT = """You are inspecting one tracked pedestrian in a vehicle dashcam video.
+The images are chronological moments. The target pedestrian has a RED box. TRAJECTORY MAP views are the full scene with the target's observed foot point path drawn as a YELLOW line ending in an arrow. TARGET DETAIL views are close-ups of the target.
+
+Task: decide whether the target walks across the road carriageway, the part of the road used by vehicles, moving from one side of it towards the other during these moments. Crossing only part of the carriageway still counts, if the target is on the vehicle road surface and moving across it.
+
+Return one JSON object with exactly these keys:
+{
+  "crosses_road": "YES|NO|UNCERTAIN",
+  "evidence_summary": "one short sentence"
+}
+
+- YES when the target is on the vehicle road surface and moves across it, not along it.
+- NO when the target walks along the pavement or verge, walks along the road edge, stands or waits at the kerb, walks in a car park away from any road, gets into or out of a vehicle, or is riding a bicycle, scooter, or motorcycle.
+- UNCERTAIN when the target's position or movement cannot be judged from the images.
+The yellow path is estimated from a moving camera and may be distorted; judge the target's real movement relative to the road and kerbs.
+
+Output JSON only."""
+
+# Version 4 keeps the version 3 views but asks the model to list what it sees
+# before answering, so small markings, signs, and signal heads are not skipped.
+MARKINGS_V4_PROMPT = MARKINGS_V3_PROMPT.replace(
+    """{
+  "zebra_crossing": "YES|NO|UNCERTAIN",""",
+    """{
+  "road_markings_seen": ["every painted marking on that road near the target, e.g. lane line, centre line, stop line, zebra stripes, arrow"],
+  "zebra_crossing": "YES|NO|UNCERTAIN",""",
+).replace(
+    "Output JSON only.",
+    "First fill road_markings_seen by checking every CROSSING CLOSE-UP and ROAD AHEAD view, then decide zebra_crossing from that list. Output JSON only.",
+)
+CONTROLS_V4_PROMPT = CONTROLS_V3_PROMPT.replace(
+    """{
+  "traffic_light": "YES|NO|UNCERTAIN",""",
+    """{
+  "signals_and_signs_seen": ["every traffic signal head and road sign visible in any CONTROL TILE, with its tile number and whether it is near the target's path"],
+  "traffic_light": "YES|NO|UNCERTAIN",""",
+).replace(
+    "Output JSON only.",
+    "First fill signals_and_signs_seen by checking every CONTROL TILE, then decide traffic_light and crossing_sign from that list. Output JSON only.",
+)
+
+CROSSING_CHECK_V2_PROMPT_VERSION = "crossing-check-v2"
+CROSSING_CHECK_V2_PROMPT = """You are inspecting one tracked pedestrian in a vehicle dashcam video.
+The images are chronological moments spread over the whole time the target is visible. The target pedestrian has a RED box. TRAJECTORY MAP views are the full scene with the target's observed foot point path drawn as a YELLOW line ending in an arrow. TARGET DETAIL views are close-ups of the target.
+
+Task: decide whether the target crosses the road: at some moment the target's feet are on the vehicle road surface (the carriageway where cars drive, not the pavement, verge, or a car park) and the target is moving across the road rather than along it. The target may be on the pavement in the other moments, before or after crossing.
+
+Return one JSON object with exactly these keys:
+{
+  "crosses_road": "YES|NO|UNCERTAIN",
+  "evidence_summary": "one short sentence"
+}
+
+- YES when, in at least one image, the target stands or walks on the vehicle road surface and the moments together show movement across the road.
+- NO when the target stays on the pavement, verge, or kerb in every image, walks along the road edge without crossing, walks in a car park away from any road, gets into or out of a vehicle, or is riding a bicycle, scooter, or motorcycle.
+- UNCERTAIN when the target's position cannot be judged from the images.
+The yellow path is estimated from a moving camera and may be distorted; judge the target's real position relative to the kerbs.
+
+Output JSON only."""
 
 # Retained as a single fingerprintable value for manifests and compatibility.
 FOCUSED_CONTEXT_PROMPT = "\n\n".join(
@@ -148,21 +336,27 @@ def normalise_prompt_mode(value: str) -> str:
 def prompt_version_for_mode(mode: str) -> str:
     """Return the immutable prompt version associated with one mode."""
 
-    return (
-        BASELINE_PROMPT_VERSION
-        if normalise_prompt_mode(mode) == "baseline_v3"
-        else FOCUSED_PROMPT_VERSION
-    )
+    return {
+        "baseline_v3": BASELINE_PROMPT_VERSION,
+        "focused_v5": FOCUSED_PROMPT_VERSION,
+        "zebra_light_v1": ZEBRA_LIGHT_PROMPT_VERSION,
+        "zebra_light_v2": ZEBRA_LIGHT_V2_PROMPT_VERSION,
+        "zebra_light_v3": ZEBRA_LIGHT_V3_PROMPT_VERSION,
+        "zebra_light_v4": ZEBRA_LIGHT_V4_PROMPT_VERSION,
+    }[normalise_prompt_mode(mode)]
 
 
 def prompt_content_for_mode(mode: str) -> str:
     """Return all prompt text used by one mode for result fingerprinting."""
 
-    return (
-        BASELINE_CONTEXT_PROMPT
-        if normalise_prompt_mode(mode) == "baseline_v3"
-        else FOCUSED_CONTEXT_PROMPT
-    )
+    return {
+        "baseline_v3": BASELINE_CONTEXT_PROMPT,
+        "focused_v5": FOCUSED_CONTEXT_PROMPT,
+        "zebra_light_v1": ZEBRA_LIGHT_PROMPT,
+        "zebra_light_v2": ZEBRA_LIGHT_V2_PROMPT,
+        "zebra_light_v3": MARKINGS_V3_PROMPT + "\n\n" + CONTROLS_V3_PROMPT,
+        "zebra_light_v4": MARKINGS_V4_PROMPT + "\n\n" + CONTROLS_V4_PROMPT,
+    }[normalise_prompt_mode(mode)]
 
 
 class VLMError(RuntimeError):
@@ -204,10 +398,21 @@ def _view_paths(
         "trajectory map": item.trajectory_path or item.context_path,
         "control search left": item.control_left_path or item.context_path,
         "control search right": item.control_right_path or item.context_path,
+        "crossing close-up": item.crossing_path or item.road_path or item.context_path,
     }
     selected: list[tuple[str, Path]] = []
     seen: set[Path] = set()
     for view in views:
+        if view == "control tiles":
+            for index, tile in enumerate(item.tile_paths or ()):
+                selected.append((f"control tile {index + 1}", tile))
+            continue
+        if view == "road ahead":
+            path = item.lower_road_path or item.context_path
+            if path.resolve() not in seen:
+                selected.append((view, path))
+                seen.add(path.resolve())
+            continue
         path = available[view]
         resolved = path.resolve()
         if resolved not in seen:
@@ -260,6 +465,15 @@ class HuggingFaceContextClassifier:
         attention = settings.get("attn_implementation")
         if attention:
             model_kwargs["attn_implementation"] = str(attention)
+        if settings.get("quantization") == "4bit":
+            # 4-bit weights let a 27B model fit in 32 GB of VRAM with evidence images.
+            from transformers import BitsAndBytesConfig
+
+            model_kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.bfloat16,
+            )
 
         try:
             if self.model_family == "qwen":
@@ -271,7 +485,11 @@ class HuggingFaceContextClassifier:
                         "max_pixels": int(settings.get("max_pixels", 401408)),
                     }
                 )
-                if "qwen3" in self.model_id.lower():
+                if "qwen3.5" in self.model_id.lower():
+                    from transformers import Qwen3_5ForConditionalGeneration
+
+                    model_class = Qwen3_5ForConditionalGeneration
+                elif "qwen3" in self.model_id.lower():
                     from transformers import Qwen3VLForConditionalGeneration
 
                     model_class = Qwen3VLForConditionalGeneration
@@ -320,6 +538,70 @@ class HuggingFaceContextClassifier:
             )
 
         selected = _sample_evidence(evidence, self.task_max_frames)
+
+        if self.prompt_mode == "zebra_light_v1":
+            return self._validate_zebra_light_response(
+                self._classify_task(
+                    selected,
+                    ZEBRA_LIGHT_PROMPT,
+                    (
+                        "full scene",
+                        "target road area",
+                        "control search left",
+                        "control search right",
+                    ),
+                    "zebra and traffic light",
+                )
+            )
+
+        if self.prompt_mode in ("zebra_light_v3", "zebra_light_v4"):
+            listing = self.prompt_mode == "zebra_light_v4"
+            markings = self._validate_markings_v3_response(
+                self._classify_task(
+                    selected,
+                    MARKINGS_V4_PROMPT if listing else MARKINGS_V3_PROMPT,
+                    ("full scene", "crossing close-up", "road ahead"),
+                    "crossing markings",
+                )
+            )
+            controls = self._validate_controls_v3_response(
+                self._classify_task(
+                    _sample_evidence(evidence, CONTROL_TASK_FRAMES),
+                    CONTROLS_V4_PROMPT if listing else CONTROLS_V3_PROMPT,
+                    ("full scene", "control tiles"),
+                    "traffic lights and crossing signs",
+                )
+            )
+            return ContextAssessment(
+                marked_crosswalk=markings["zebra_crossing"],
+                permissive_pedestrian_signal=None,
+                authorised_crossing_sign=controls["crossing_sign"],
+                crossing_guard_permission=None,
+                prohibitive_pedestrian_signal=None,
+                visibility=markings["visibility"],
+                evidence_summary=" ".join(
+                    item
+                    for item in (markings["evidence_summary"], controls["evidence_summary"])
+                    if item
+                ),
+                traffic_light=controls["traffic_light"],
+            )
+
+        if self.prompt_mode == "zebra_light_v2":
+            return self._validate_zebra_light_response(
+                self._classify_task(
+                    selected,
+                    ZEBRA_LIGHT_V2_PROMPT,
+                    (
+                        "full scene",
+                        "crossing close-up",
+                        "control search left",
+                        "control search right",
+                    ),
+                    "zebra, traffic light, and crossing sign",
+                ),
+                with_sign=True,
+            )
 
         road = self._validate_road_response(
             self._classify_task(
@@ -370,6 +652,33 @@ class HuggingFaceContextClassifier:
             evidence_summary=" ".join(item for item in summaries if item),
         )
 
+    def confirm_crossing(
+        self,
+        evidence: list[EvidenceImage],
+        version: str = "v1",
+        max_frames: int | None = None,
+    ) -> tuple[Ternary, str]:
+        """Ask whether the target really walks across the carriageway."""
+
+        if not evidence:
+            raise VLMError("No evidence images were supplied to the VLM")
+        self.ensure_ready()
+        prompt = {"v1": CROSSING_CHECK_PROMPT, "v2": CROSSING_CHECK_V2_PROMPT}[version]
+        payload = self._decode_payload(
+            self._classify_task(
+                _sample_evidence(evidence, max_frames or self.task_max_frames),
+                prompt,
+                ("trajectory map", "target detail"),
+                "crossing check",
+            )
+        )
+        if set(payload) != {"crosses_road", "evidence_summary"}:
+            raise VLMError(f"VLM returned unexpected crossing check keys: {payload}")
+        return (
+            self._ternary(payload["crosses_road"], payload),
+            str(payload["evidence_summary"]).strip(),
+        )
+
     def _classify_task(
         self,
         evidence: list[EvidenceImage],
@@ -407,6 +716,8 @@ class HuggingFaceContextClassifier:
                 messages,
                 tokenize=False,
                 add_generation_prompt=True,
+                # Qwen3.5 thinks by default; the answers must be plain JSON.
+                enable_thinking=False,
             )
             image_inputs, video_inputs = self._process_vision_info(messages)
             inputs = self.processor(
@@ -517,7 +828,7 @@ class HuggingFaceContextClassifier:
     @staticmethod
     def _model_family(model_id: str) -> str:
         normalised = model_id.strip().lower()
-        if "qwen2.5-vl" in normalised or "qwen3-vl" in normalised:
+        if "qwen2.5-vl" in normalised or "qwen3-vl" in normalised or "qwen3.5" in normalised:
             return "qwen"
         if "gemma-4" in normalised:
             return "gemma"
@@ -634,44 +945,58 @@ class HuggingFaceContextClassifier:
         }
 
     @classmethod
-    def _validate_control_response(cls, content: str) -> dict[str, Any]:
+    def _validate_zebra_light_response(
+        cls, content: str, with_sign: bool = False
+    ) -> ContextAssessment:
         payload = cls._decode_payload(content)
-        expected = {
-            "dedicated_pedestrian_signal_visible",
-            "permissive_pedestrian_signal",
-            "authorised_crossing_sign",
-            "crossing_guard_permission",
-            "prohibitive_pedestrian_signal",
-            "evidence_summary",
-        }
+        expected = {"zebra_crossing", "traffic_light", "visibility", "evidence_summary"}
+        if with_sign:
+            expected.add("crossing_sign")
         if set(payload) != expected:
-            raise VLMError(f"VLM returned unexpected traffic control keys: {payload}")
-
-        signal_visible = cls._ternary(
-            payload["dedicated_pedestrian_signal_visible"], payload
+            raise VLMError(f"VLM returned unexpected zebra and light keys: {payload}")
+        try:
+            visibility = Visibility(str(payload["visibility"]).upper())
+        except ValueError as error:
+            raise VLMError(f"VLM returned an invalid visibility schema: {payload}") from error
+        return ContextAssessment(
+            marked_crosswalk=cls._ternary(payload["zebra_crossing"], payload),
+            permissive_pedestrian_signal=None,
+            authorised_crossing_sign=(
+                cls._ternary(payload["crossing_sign"], payload) if with_sign else None
+            ),
+            crossing_guard_permission=None,
+            prohibitive_pedestrian_signal=None,
+            visibility=visibility,
+            evidence_summary=str(payload["evidence_summary"]).strip(),
+            traffic_light=cls._ternary(payload["traffic_light"], payload),
         )
-        permissive = cls._ternary(payload["permissive_pedestrian_signal"], payload)
-        prohibitive = cls._ternary(payload["prohibitive_pedestrian_signal"], payload)
-        if signal_visible is Ternary.NO:
-            permissive = Ternary.NO
-            prohibitive = Ternary.NO
-        elif signal_visible is Ternary.UNCERTAIN:
-            permissive = Ternary.UNCERTAIN
-            prohibitive = Ternary.UNCERTAIN
-        elif permissive is Ternary.YES and prohibitive is Ternary.YES:
-            raise VLMError(
-                "VLM returned mutually exclusive pedestrian signal states: "
-                "permissive and prohibitive cannot both be YES"
-            )
+
+    @classmethod
+    def _validate_markings_v3_response(cls, content: str) -> dict[str, Any]:
+        payload = cls._decode_payload(content)
+        # The optional listing is reasoning scaffolding and is not stored.
+        payload.pop("road_markings_seen", None)
+        if set(payload) != {"zebra_crossing", "visibility", "evidence_summary"}:
+            raise VLMError(f"VLM returned unexpected crossing marking keys: {payload}")
+        try:
+            visibility = Visibility(str(payload["visibility"]).upper())
+        except ValueError as error:
+            raise VLMError(f"VLM returned an invalid visibility schema: {payload}") from error
         return {
-            "permissive_pedestrian_signal": permissive,
-            "authorised_crossing_sign": cls._ternary(
-                payload["authorised_crossing_sign"], payload
-            ),
-            "crossing_guard_permission": cls._ternary(
-                payload["crossing_guard_permission"], payload
-            ),
-            "prohibitive_pedestrian_signal": prohibitive,
+            "zebra_crossing": cls._ternary(payload["zebra_crossing"], payload),
+            "visibility": visibility,
+            "evidence_summary": str(payload["evidence_summary"]).strip(),
+        }
+
+    @classmethod
+    def _validate_controls_v3_response(cls, content: str) -> dict[str, Any]:
+        payload = cls._decode_payload(content)
+        payload.pop("signals_and_signs_seen", None)
+        if set(payload) != {"traffic_light", "crossing_sign", "evidence_summary"}:
+            raise VLMError(f"VLM returned unexpected traffic control keys: {payload}")
+        return {
+            "traffic_light": cls._ternary(payload["traffic_light"], payload),
+            "crossing_sign": cls._ternary(payload["crossing_sign"], payload),
             "evidence_summary": str(payload["evidence_summary"]).strip(),
         }
 

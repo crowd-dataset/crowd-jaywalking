@@ -148,6 +148,8 @@ def make_evidence_views(
 ) -> dict[str, Any]:
     """Create clean context views plus a separate annotated trajectory view."""
 
+    import cv2
+
     height, width = image.shape[:2]
     target_pixels = _box_pixels(target_box, width, height)
     x1, y1, x2, y2 = target_pixels
@@ -196,6 +198,50 @@ def make_evidence_views(
     road = context[road_y1:road_y2, road_x1:road_x2].copy()
     _draw_view_label(road, "TARGET ROAD AREA")
 
+    # A tight, full resolution crop around the target's feet and path, with only a
+    # thin box: distant crosswalk stripes vanish in the downscaled full scene.
+    box_width = max(1, x2 - x1)
+    foot_x = [item[0] for item in points] or [(x1 + x2) // 2]
+    foot_y = [item[1] for item in points] or [y2]
+    close_width = max(
+        int(round(0.25 * width)),
+        12 * box_width,
+        max(foot_x) - min(foot_x) + 4 * box_width,
+    )
+    close_height = int(round(0.45 * close_width))
+    centre_x = (min(foot_x) + max(foot_x)) // 2
+    centre_y = int(round(sum(foot_y) / len(foot_y)))
+    close_x1, close_x2 = _expanded_axis(
+        centre_x - close_width // 2, centre_x + close_width // 2, close_width, width
+    )
+    close_y1, close_y2 = _expanded_axis(
+        centre_y - int(round(0.55 * close_height)),
+        centre_y + int(round(0.45 * close_height)),
+        close_height,
+        height,
+    )
+    crossing = image.copy()
+    cv2.rectangle(crossing, (x1, y1), (x2, y2), (0, 0, 255), 1)
+    # No banner: the prompt names the view, and a banner would hide road pixels.
+    crossing = crossing[close_y1:close_y2, close_x1:close_x2].copy()
+
+    # The whole road ahead at full width, so markings between the camera and the
+    # target, or a few metres beside the target, are visible too.
+    lower_road = image.copy()
+    cv2.rectangle(lower_road, (x1, y1), (x2, y2), (0, 0, 255), 1)
+    lower_road = lower_road[int(round(0.40 * height)):height, 0:width].copy()
+
+    # Six overlapping tiles of the upper scene near native resolution: crossing
+    # signs and signal heads are only a few pixels wide in the full scene.
+    tiles = {}
+    for row, top in enumerate((0.05, 0.37)):
+        for column, left in enumerate((0.0, 0.30, 0.60)):
+            tile_x1 = int(round(left * width))
+            tile_x2 = min(width, int(round((left + 0.40) * width)))
+            tile_y1 = int(round(top * height))
+            tile_y2 = min(height, int(round((top + 0.38) * height)))
+            tiles[f"tile_{row * 3 + column}"] = image[tile_y1:tile_y2, tile_x1:tile_x2].copy()
+
     control_y2 = max(1, min(height, int(round(control_crop_bottom * height))))
     half_overlap = control_crop_overlap / 2.0
     left_x2 = max(1, min(width, int(round((0.5 + half_overlap) * width))))
@@ -212,6 +258,9 @@ def make_evidence_views(
         "trajectory": _resize(trajectory, maximum_dimension),
         "control_left": _resize(control_left, maximum_dimension),
         "control_right": _resize(control_right, maximum_dimension),
+        "crossing": _resize(crossing, maximum_dimension),
+        "lower_road": _resize(lower_road, maximum_dimension),
+        **{name: _resize(tile, maximum_dimension) for name, tile in tiles.items()},
     }
 
 
@@ -236,6 +285,7 @@ class EvidenceBuilder:
         observations: list[TrackObservation],
         output_root: str | Path,
         fps: float,
+        span: str = "transition",
     ) -> list[EvidenceImage]:
         """Save crossing-centred evidence views for one event."""
 
@@ -243,16 +293,21 @@ class EvidenceBuilder:
 
         source = Path(video_path).resolve()
         context_frames = max(0, int(round(self.context_seconds * max(float(fps), 1.0))))
-        evidence_start = max(event.start_frame, event.transition_start_frame - context_frames)
-        evidence_end = min(event.end_frame, event.transition_end_frame + context_frames)
-        event_dir = (
-            Path(output_root).resolve()
-            / source.stem
-            / (
+        if span == "track":
+            # The whole track: "does this person cross at any point" must not depend
+            # on a short or misplaced transition window.
+            evidence_start, evidence_end = event.start_frame, event.end_frame
+            folder = f"person_{event.person_id}_track_{event.start_frame}_{event.end_frame}"
+        elif span == "transition":
+            evidence_start = max(event.start_frame, event.transition_start_frame - context_frames)
+            evidence_end = min(event.end_frame, event.transition_end_frame + context_frames)
+            folder = (
                 f"person_{event.person_id}_transition_"
                 f"{event.transition_start_frame}_{event.transition_end_frame}"
             )
-        )
+        else:
+            raise ValueError("span must be 'transition' or 'track'")
+        event_dir = Path(output_root).resolve() / source.stem / folder
         event_dir.mkdir(parents=True, exist_ok=True)
 
         target_track = sorted(
@@ -313,6 +368,9 @@ class EvidenceBuilder:
                         trajectory_path=paths["trajectory"],
                         control_left_path=paths["control_left"],
                         control_right_path=paths["control_right"],
+                        crossing_path=paths["crossing"],
+                        lower_road_path=paths["lower_road"],
+                        tile_paths=tuple(paths[f"tile_{index}"] for index in range(6)),
                     )
                 )
         finally:

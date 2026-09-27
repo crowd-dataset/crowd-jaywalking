@@ -125,16 +125,14 @@ class VLMValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(VLMError, "mutually exclusive"):
             HuggingFaceContextClassifier._validate_response(json.dumps(payload))
 
-    def test_control_visibility_no_forces_both_signal_states_to_no(self) -> None:
+    def test_signal_visibility_no_forces_both_signal_states_to_no(self) -> None:
         payload = {
             "dedicated_pedestrian_signal_visible": "NO",
             "permissive_pedestrian_signal": "YES",
-            "authorised_crossing_sign": "NO",
-            "crossing_guard_permission": "NO",
             "prohibitive_pedestrian_signal": "UNCERTAIN",
             "evidence_summary": "Only circular vehicle lamps are visible.",
         }
-        result = HuggingFaceContextClassifier._validate_control_response(
+        result = HuggingFaceContextClassifier._validate_signal_response(
             json.dumps(payload)
         )
         self.assertEqual(result["permissive_pedestrian_signal"], Ternary.NO)

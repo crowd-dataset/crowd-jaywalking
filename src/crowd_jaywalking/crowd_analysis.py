@@ -27,7 +27,7 @@ from .crowd_source import (
 from .models import DecisionLabel, to_jsonable
 from .pipeline import JaywalkingPipeline
 from .tracking import save_observations_csv
-from .vlm import PROMPT_VERSION
+from .vlm import prompt_version_for_mode
 
 
 SOURCE_FIELDS = (
@@ -61,6 +61,9 @@ PERSON_FIELDS = SOURCE_FIELDS + (
     "person_id",
     "classifier_probability",
     "classifier_threshold",
+    "gate_probability",
+    "gate_threshold",
+    "gate_precision_tier",
     "predicted_crossing",
     "rule_outcome",
     "transition_start_frame",
@@ -377,6 +380,7 @@ class CrowdAnalysisRunner:
 
     def _write_manifest(self, segments: list[CrowdSegment]) -> None:
         classifier = self.config.crossing_classifier_settings()
+        prompt_version = prompt_version_for_mode(self.config.vlm_settings()["prompt_mode"])
         model_path = Path(classifier["model"])
         mapping_path = Path(self.settings["mapping"])
         tracking_model = Path(str(self.config.get("tracking_model")))
@@ -409,8 +413,8 @@ class CrowdAnalysisRunner:
             "tracker_config_sha256": (
                 _sha256(tracker_path) if tracker_path.is_file() else None
             ),
-            "config_fingerprint": self.config.fingerprint(PROMPT_VERSION),
-            "prompt_version": PROMPT_VERSION,
+            "config_fingerprint": self.config.fingerprint(prompt_version),
+            "prompt_version": prompt_version,
         }
         existing = self.output / "run_manifest.json"
         if existing.is_file() and self.settings["resume"]:
@@ -471,6 +475,9 @@ class CrowdAnalysisRunner:
                         "person_id": item["person_id"],
                         "classifier_probability": item["probability"],
                         "classifier_threshold": item["threshold"],
+                        "gate_probability": item.get("gate_probability"),
+                        "gate_threshold": item.get("gate_threshold"),
+                        "gate_precision_tier": item.get("gate_precision_tier"),
                         "predicted_crossing": item["predicted_crossing"],
                         "rule_outcome": item["rule_outcome"],
                         "transition_start_frame": event["transition_start_frame"],

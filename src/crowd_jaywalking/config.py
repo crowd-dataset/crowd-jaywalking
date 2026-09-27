@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .policy import JaywalkingPolicy
+
 
 ACTIVE_CONFIG_NAME = "config"
 DEFAULT_CONFIG_NAME = "default.config"
@@ -47,6 +49,35 @@ OPTIONAL_CLASSIFIER_DEFAULTS = {
     "crossing_classifier_min_track_frames": 5,
 }
 
+# An absent infrastructure_segmentation_model disables the segmentation check.
+OPTIONAL_SEGMENTATION_DEFAULTS = {
+    "infrastructure_segmentation_model": None,
+    "segmentation_shortest_edge": 1080,
+    "segmentation_longest_edge": 1920,
+    # Chosen on the tuning half of the JAAD context benchmark only.
+    "segmentation_max_crosswalk_near_path_px": 50,
+    "segmentation_max_crosswalk_road_px": 1000,
+    "segmentation_max_traffic_light_px": 100,
+}
+
+# An absent crossing_gate_model disables the gate, which keeps legacy
+# configurations and their fingerprints unchanged.
+OPTIONAL_GATE_DEFAULTS = {
+    "crossing_gate_model": None,
+    "crossing_gate_results": "results/jaad_crossing_gate_v1",
+    "crossing_gate_min_precision": 0.90,
+    "crossing_gate_precision_tiers": [0.98, 0.95, 0.90],
+    "crossing_gate_min_accepted": 30,
+    "crossing_gate_cv_folds": 5,
+    "crossing_gate_learning_rate": 0.05,
+    "crossing_gate_max_leaf_nodes": 15,
+    "crossing_gate_random_seed": 42,
+    # Absent keys keep the legacy behaviour: no VLM crossing check and no rescue.
+    "crossing_vlm_check": False,
+    "crossing_rescue_min_first_stage": None,
+    "crossing_rescue_min_gate": None,
+}
+
 OPTIONAL_CROWD_DEFAULTS = {
     "mapping": "mapping.csv",
     "ftp_server": "https://files.mobility-squad.com/",
@@ -80,6 +111,18 @@ OPTIONAL_EVIDENCE_DEFAULTS = {
     "evidence_control_crop_overlap": 0.20,
     "vlm_task_max_frames": 4,
     "vlm_prompt_mode": "baseline_v3",
+}
+
+OPTIONAL_POLICY_DEFAULTS = {
+    "permission_cues": [
+        "marked_crosswalk",
+        "permissive_pedestrian_signal",
+        "authorised_crossing_sign",
+        "crossing_guard_permission",
+    ],
+    "partial_visibility_uncertain": True,
+    "context_scope": "person",
+    "strict_absence": False,
 }
 
 OPTIONAL_CONTEXT_AUDIT_DEFAULTS = {
@@ -346,6 +389,8 @@ class ProjectConfig:
                 "vlm_task_max_frames",
                 OPTIONAL_EVIDENCE_DEFAULTS["vlm_task_max_frames"],
             ),
+            # "4bit" loads larger VLMs with bitsandbytes; absent or null loads full precision.
+            "quantization": self.raw.get("vlm_quantization"),
         }
 
     def vlm_comparison_settings(self) -> dict[str, Any]:
@@ -391,10 +436,76 @@ class ProjectConfig:
         }
 
     def policy_settings(self) -> dict[str, Any]:
+        # Optional policy keys are deliberately not added to the fingerprint defaults:
+        # configurations that omit them keep the legacy policy and their fingerprint.
+        permission_cues = self.raw.get(
+            "permission_cues", OPTIONAL_POLICY_DEFAULTS["permission_cues"]
+        )
+        if not isinstance(permission_cues, list):
+            raise ValueError("permission_cues must be a list")
         return {
             "prohibitive_signal_overrides_crosswalk": self.get(
                 "prohibitive_signal_overrides_crosswalk"
-            )
+            ),
+            "permission_cues": [str(item).strip().lower() for item in permission_cues],
+            "partial_visibility_uncertain": bool(
+                self.raw.get(
+                    "partial_visibility_uncertain",
+                    OPTIONAL_POLICY_DEFAULTS["partial_visibility_uncertain"],
+                )
+            ),
+            "context_scope": str(
+                self.raw.get("context_scope", OPTIONAL_POLICY_DEFAULTS["context_scope"])
+            ).strip().lower(),
+            "strict_absence": bool(
+                self.raw.get("strict_absence", OPTIONAL_POLICY_DEFAULTS["strict_absence"])
+            ),
+        }
+
+    def segmentation_settings(self) -> dict[str, Any]:
+        """Return settings for the optional infrastructure segmentation check."""
+
+        value = lambda name: self.raw.get(name, OPTIONAL_SEGMENTATION_DEFAULTS[name])
+        model = value("infrastructure_segmentation_model")
+        return {
+            "enabled": model is not None,
+            "model": model,
+            "shortest_edge": int(value("segmentation_shortest_edge")),
+            "longest_edge": int(value("segmentation_longest_edge")),
+            "max_crosswalk_near_path_px": int(value("segmentation_max_crosswalk_near_path_px")),
+            "max_crosswalk_road_px": int(value("segmentation_max_crosswalk_road_px")),
+            "max_traffic_light_px": int(value("segmentation_max_traffic_light_px")),
+        }
+
+    def crossing_gate_settings(self) -> dict[str, Any]:
+        """Return settings for the optional high precision crossing gate."""
+
+        value = lambda name: self.raw.get(name, OPTIONAL_GATE_DEFAULTS[name])
+        results = self._resolved_optional_path(
+            "crossing_gate_results", OPTIONAL_GATE_DEFAULTS["crossing_gate_results"]
+        )
+        model = value("crossing_gate_model")
+        return {
+            "enabled": model is not None,
+            "results": results,
+            "model": (
+                self._resolved_optional_path("crossing_gate_model", "")
+                if model is not None
+                else results / "crossing_gate.joblib"
+            ),
+            "min_precision": float(value("crossing_gate_min_precision")),
+            "precision_tiers": sorted(
+                (float(item) for item in value("crossing_gate_precision_tiers")),
+                reverse=True,
+            ),
+            "min_accepted": int(value("crossing_gate_min_accepted")),
+            "cv_folds": int(value("crossing_gate_cv_folds")),
+            "learning_rate": float(value("crossing_gate_learning_rate")),
+            "max_leaf_nodes": int(value("crossing_gate_max_leaf_nodes")),
+            "random_seed": int(value("crossing_gate_random_seed")),
+            "vlm_check": bool(value("crossing_vlm_check")),
+            "rescue_min_first_stage": value("crossing_rescue_min_first_stage"),
+            "rescue_min_gate": value("crossing_rescue_min_gate"),
         }
 
     def crossing_classifier_settings(self) -> dict[str, Any]:
@@ -622,7 +733,14 @@ class ProjectConfig:
         ) <= 0:
             raise ValueError("vlm_task_max_frames must be positive")
 
-        valid_prompt_modes = {"baseline_v3", "focused_v5"}
+        valid_prompt_modes = {
+            "baseline_v3",
+            "focused_v5",
+            "zebra_light_v1",
+            "zebra_light_v2",
+            "zebra_light_v3",
+            "zebra_light_v4",
+        }
         prompt_mode = str(
             self.raw.get(
                 "vlm_prompt_mode",
@@ -631,7 +749,7 @@ class ProjectConfig:
         ).strip().lower()
         if prompt_mode not in valid_prompt_modes:
             raise ValueError(
-                "vlm_prompt_mode must be one of: baseline_v3, focused_v5"
+                "vlm_prompt_mode must be one of: " + ", ".join(sorted(valid_prompt_modes))
             )
 
         comparison = self.vlm_comparison_settings()
@@ -647,7 +765,32 @@ class ProjectConfig:
             raise ValueError("vlm_comparison_prompt_modes must contain distinct values")
         if any(mode not in valid_prompt_modes for mode in comparison["prompt_modes"]):
             raise ValueError(
-                "vlm_comparison_prompt_modes may contain only baseline_v3 and focused_v5"
+                "vlm_comparison_prompt_modes may contain only: "
+                + ", ".join(sorted(valid_prompt_modes))
+            )
+
+        JaywalkingPolicy(self.policy_settings())
+        gate = self.crossing_gate_settings()
+        if not gate["precision_tiers"] or any(
+            not 0.0 < tier <= 1.0 for tier in gate["precision_tiers"]
+        ):
+            raise ValueError(
+                "crossing_gate_precision_tiers must be values greater than 0 and at most 1"
+            )
+        rescue = (gate["rescue_min_first_stage"], gate["rescue_min_gate"])
+        if (rescue[0] is None) != (rescue[1] is None):
+            raise ValueError(
+                "Set both crossing_rescue_min_first_stage and crossing_rescue_min_gate, or neither"
+            )
+        if rescue[0] is not None and not gate["vlm_check"]:
+            raise ValueError("Rescued crossings require crossing_vlm_check to confirm them")
+        if gate["min_precision"] not in gate["precision_tiers"]:
+            raise ValueError(
+                "crossing_gate_min_precision must be one of crossing_gate_precision_tiers"
+            )
+        if gate["min_accepted"] < 1 or gate["cv_folds"] < 2:
+            raise ValueError(
+                "crossing_gate_min_accepted must be positive and crossing_gate_cv_folds at least 2"
             )
 
         self.path("jaad_root")

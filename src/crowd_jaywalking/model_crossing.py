@@ -27,17 +27,22 @@ class ModelCrossingDetectionResult:
 
 
 class ModelCrossingDetector:
-    """Score every sufficiently long person track with the frozen classifier."""
+    """Score every sufficiently long person track with the frozen classifier.
+
+    An optional gate must also accept a track before it counts as a crossing.
+    """
 
     def __init__(
         self,
         classifier: CrossingClassifier,
         crossing_settings: dict[str, Any],
         min_track_frames: int = 5,
+        gate: Any | None = None,
     ) -> None:
         if min_track_frames < 1:
             raise ValueError("min_track_frames must be positive")
         self.classifier = classifier
+        self.gate = gate
         self.rule_detector = CrossingDetector(crossing_settings)
         self.extractor = TrackFeatureExtractor(crossing_settings)
         self.min_track_frames = int(min_track_frames)
@@ -63,12 +68,22 @@ class ModelCrossingDetector:
             for track_id in ordered_ids
         ]
         probabilities = self.classifier.predict_probabilities(rows)
+        gate_probabilities = (
+            self.gate.predict_probabilities(rows)
+            if self.gate is not None
+            else [None] * len(rows)
+        )
 
         accepted: list[CrossingEvent] = []
         rejected: list[CrossingEvent] = []
         classifications: list[CrossingClassification] = []
-        for track_id, row, probability in zip(ordered_ids, rows, probabilities):
-            predicted = float(probability) >= self.classifier.threshold
+        for track_id, row, probability, gate_probability in zip(
+            ordered_ids, rows, probabilities, gate_probabilities
+        ):
+            first_stage = float(probability) >= self.classifier.threshold
+            predicted = first_stage and (
+                gate_probability is None or float(gate_probability) >= self.gate.threshold
+            )
             rule_event = rule_events.get(track_id)
             event = self._event(
                 track_id,
@@ -76,6 +91,9 @@ class ModelCrossingDetector:
                 row,
                 predicted,
                 rule_event,
+                RejectionReason.GATE_NEGATIVE
+                if first_stage
+                else RejectionReason.CLASSIFIER_NEGATIVE,
             )
             rule_outcome = self._rule_outcome(rule_event)
             classification = CrossingClassification(
@@ -86,6 +104,15 @@ class ModelCrossingDetector:
                 rule_outcome=rule_outcome,
                 event=event,
                 track_features=row,
+                gate_probability=(
+                    None if gate_probability is None else round(float(gate_probability), 8)
+                ),
+                gate_threshold=(
+                    None if self.gate is None else round(float(self.gate.threshold), 8)
+                ),
+                gate_precision_tier=(
+                    None if gate_probability is None else self.gate.tier(float(gate_probability))
+                ),
             )
             classifications.append(classification)
             (accepted if predicted else rejected).append(event)
@@ -125,6 +152,7 @@ class ModelCrossingDetector:
         row: dict[str, Any],
         predicted: bool,
         rule_event: CrossingEvent | None,
+        negative_reason: RejectionReason = RejectionReason.CLASSIFIER_NEGATIVE,
     ) -> CrossingEvent:
         transition_start, transition_end = self._transition_frames(track, rule_event)
         duration = max(
@@ -153,9 +181,7 @@ class ModelCrossingDetector:
             transition_start_frame=transition_start,
             transition_end_frame=transition_end,
             valid=predicted,
-            rejection_reason=(
-                RejectionReason.NONE if predicted else RejectionReason.CLASSIFIER_NEGATIVE
-            ),
+            rejection_reason=RejectionReason.NONE if predicted else negative_reason,
             features=features,
         )
 

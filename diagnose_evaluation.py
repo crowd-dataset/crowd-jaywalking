@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any
 
 from crowd_jaywalking.config import ProjectConfig
+from crowd_jaywalking.models import ContextAssessment, Ternary, Visibility
+from crowd_jaywalking.policy import JaywalkingPolicy
 
 
 CONTEXT_FIELDS = (
@@ -26,6 +28,7 @@ CONTEXT_FIELDS = (
     "authorised_crossing_sign",
     "crossing_guard_permission",
     "prohibitive_pedestrian_signal",
+    "traffic_light",
     "visibility",
 )
 
@@ -81,7 +84,7 @@ def report_context_fields(payloads: list[dict[str, Any]]) -> None:
         print("No person decisions were recorded.")
         return
     for field in CONTEXT_FIELDS:
-        counts = Counter(str(person["context"][field]) for person in people)
+        counts = Counter(str(person["context"].get(field)) for person in people)
         parts = [
             f"{value}={count} ({100.0 * count / len(people):.0f}%)"
             for value, count in counts.most_common()
@@ -234,32 +237,84 @@ def report_counterfactuals(payloads: list[dict[str, Any]]) -> None:
         f"{accuracy(payloads, majority):>6.1f}%"
     )
 
-    ignore_partial = []
-    for payload in payloads:
-        labels = []
-        for person in payload["result"]["person_decisions"]:
-            context = person["context"]
-            if context["visibility"] == "INSUFFICIENT":
-                labels.append("UNCERTAIN")
-                continue
-            if context["prohibitive_pedestrian_signal"] == "YES":
-                labels.append("JAYWALKING")
-                continue
-            permissions = [
-                context[field]
-                for field in CONTEXT_FIELDS[:4]
-            ]
-            if "YES" in permissions:
-                labels.append("COMPLIANT")
-            elif "UNCERTAIN" in permissions:
-                labels.append("UNCERTAIN")
-            else:
-                labels.append("JAYWALKING")
-        ignore_partial.append(video_label(labels))
-    print(
-        f"  {'PARTIAL visibility no longer forces UNCERTAIN':<46}"
-        f"{accuracy(payloads, ignore_partial):>6.1f}%"
+
+POLICY_VARIANTS = (
+    ("legacy: four cues, person scope", {}),
+    (
+        "zebra and light, person scope",
+        {
+            "permission_cues": ["marked_crosswalk", "permissive_pedestrian_signal"],
+            "partial_visibility_uncertain": False,
+        },
+    ),
+    (
+        "zebra and light, scene scope",
+        {
+            "permission_cues": ["marked_crosswalk", "permissive_pedestrian_signal"],
+            "partial_visibility_uncertain": False,
+            "context_scope": "scene",
+        },
+    ),
+    (
+        "four cues, scene scope",
+        {"partial_visibility_uncertain": False, "context_scope": "scene"},
+    ),
+    (
+        "zebra and light, scene, strict absence",
+        {
+            "permission_cues": ["marked_crosswalk", "permissive_pedestrian_signal"],
+            "prohibitive_signal_overrides_crosswalk": False,
+            "partial_visibility_uncertain": False,
+            "context_scope": "scene",
+            "strict_absence": True,
+        },
+    ),
+)
+
+
+def _ternary(value: Any) -> Ternary | None:
+    return None if value is None else Ternary(value)
+
+
+def _assessment(context: dict[str, Any]) -> ContextAssessment:
+    return ContextAssessment(
+        marked_crosswalk=Ternary(context["marked_crosswalk"]),
+        permissive_pedestrian_signal=_ternary(context["permissive_pedestrian_signal"]),
+        authorised_crossing_sign=_ternary(context["authorised_crossing_sign"]),
+        crossing_guard_permission=_ternary(context["crossing_guard_permission"]),
+        prohibitive_pedestrian_signal=_ternary(context["prohibitive_pedestrian_signal"]),
+        visibility=Visibility(context["visibility"]),
+        evidence_summary=str(context.get("evidence_summary", "")),
+        traffic_light=_ternary(context.get("traffic_light")),
     )
+
+
+def report_policy_variants(payloads: list[dict[str, Any]]) -> None:
+    """Re-apply alternative policy settings to the saved VLM context."""
+
+    print(f"\n{'=' * 72}\nPOLICY VARIANTS (recomputed, no inference)\n{'=' * 72}")
+    print(f"  {'variant':<40}{'accuracy':>9}{'TP':>5}{'TN':>5}{'FP':>5}{'FN':>5}{'UNC':>6}")
+    for name, settings in POLICY_VARIANTS:
+        policy = JaywalkingPolicy(settings)
+        predictions = []
+        for payload in payloads:
+            contexts = [
+                _assessment(person["context"])
+                for person in payload["result"]["person_decisions"]
+            ]
+            labels = [label.value for label, _ in policy.decide_all(contexts)]
+            predictions.append(video_label(labels))
+        counts = Counter(
+            "UNC" if prediction == "UNCERTAIN"
+            else ("T" if (prediction == payload["ground_truth"]) else "F")
+            + ("P" if prediction == "JAYWALKING" else "N")
+            for payload, prediction in zip(payloads, predictions)
+        )
+        print(
+            f"  {name:<40}{accuracy(payloads, predictions):>8.1f}%"
+            f"{counts['TP']:>5}{counts['TN']:>5}{counts['FP']:>5}"
+            f"{counts['FN']:>5}{counts['UNC']:>6}"
+        )
 
 
 def main() -> None:
@@ -273,6 +328,7 @@ def main() -> None:
     report_people_count_effect(payloads)
     report_threshold_sweep(payloads)
     report_counterfactuals(payloads)
+    report_policy_variants(payloads)
 
 
 if __name__ == "__main__":

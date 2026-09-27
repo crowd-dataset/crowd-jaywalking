@@ -20,6 +20,26 @@ class _FakeClassifier:
         return [0.80 if row["matched_track_id_for_test"] == 1 else 0.20 for row in rows]
 
 
+class _AcceptAllClassifier:
+    threshold = 0.57
+
+    @staticmethod
+    def predict_probabilities(rows):
+        return [0.90 for _ in rows]
+
+
+class _FakeGate:
+    threshold = 0.95
+
+    @staticmethod
+    def predict_probabilities(rows):
+        return [0.99 if row["matched_track_id_for_test"] == 1 else 0.10 for row in rows]
+
+    @staticmethod
+    def tier(probability):
+        return 0.98 if probability >= 0.98 else None
+
+
 class ModelCrossingTests(unittest.TestCase):
     def setUp(self) -> None:
         raw = json.loads(Path("default.config").read_text(encoding="utf-8"))
@@ -56,6 +76,34 @@ class ModelCrossingTests(unittest.TestCase):
             RejectionReason.CLASSIFIER_NEGATIVE,
         )
         self.assertEqual(result.classifications[0].rule_outcome, "NO_RULE_CANDIDATE")
+
+    def test_gate_rejects_first_stage_acceptances_it_does_not_confirm(self) -> None:
+        observations = self._track(1, [0.10, 0.12, 0.14]) + self._track(
+            2, [0.80, 0.82, 0.84]
+        )
+        detector = ModelCrossingDetector(
+            _AcceptAllClassifier(), self.settings, min_track_frames=3, gate=_FakeGate()
+        )
+        original = detector.extractor.extract
+
+        def extract(track, all_observations, fps):
+            row = original(track, all_observations, fps)
+            row["matched_track_id_for_test"] = track[0].track_id
+            return row
+
+        detector.extractor.extract = extract
+        result = detector.detect(observations, fps=1.0)
+        self.assertEqual([event.person_id for event in result.valid_events], [1])
+        self.assertEqual(
+            result.rejected_events[0].rejection_reason,
+            RejectionReason.GATE_NEGATIVE,
+        )
+        self.assertEqual(
+            [item.gate_probability for item in result.classifications], [0.99, 0.10]
+        )
+        self.assertEqual(
+            [item.gate_precision_tier for item in result.classifications], [0.98, None]
+        )
 
     def test_audit_sample_includes_boundary_and_confident_cases(self) -> None:
         rows = []

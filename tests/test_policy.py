@@ -49,6 +49,84 @@ class JaywalkingPolicyTests(unittest.TestCase):
         label, _ = JaywalkingPolicy({}).decide(context(visibility=Visibility.PARTIAL))
         self.assertEqual(label, DecisionLabel.UNCERTAIN)
 
+    def test_partial_absence_can_be_decided(self) -> None:
+        policy = JaywalkingPolicy({"partial_visibility_uncertain": False})
+        label, _ = policy.decide(context(visibility=Visibility.PARTIAL))
+        self.assertEqual(label, DecisionLabel.JAYWALKING)
+
+    def test_unselected_cue_does_not_grant_permission(self) -> None:
+        policy = JaywalkingPolicy(
+            {"permission_cues": ["marked_crosswalk", "permissive_pedestrian_signal"]}
+        )
+        label, _ = policy.decide(context(sign=Ternary.YES, guard=Ternary.UNCERTAIN))
+        self.assertEqual(label, DecisionLabel.JAYWALKING)
+
+    def test_rejects_unknown_settings(self) -> None:
+        with self.assertRaises(ValueError):
+            JaywalkingPolicy({"permission_cues": ["zebra"]})
+        with self.assertRaises(ValueError):
+            JaywalkingPolicy({"context_scope": "video"})
+
+    def test_person_scope_decides_each_person_alone(self) -> None:
+        labels = [
+            label
+            for label, _ in JaywalkingPolicy({}).decide_all(
+                [context(crosswalk=Ternary.YES), context()]
+            )
+        ]
+        self.assertEqual(labels, [DecisionLabel.COMPLIANT, DecisionLabel.JAYWALKING])
+
+    def test_scene_scope_shares_permission_across_people(self) -> None:
+        policy = JaywalkingPolicy({"context_scope": "scene"})
+        outcomes = policy.decide_all(
+            [
+                context(crosswalk=Ternary.YES),
+                context(),
+                context(visibility=Visibility.INSUFFICIENT),
+            ]
+        )
+        self.assertEqual(
+            [label for label, _ in outcomes],
+            [DecisionLabel.COMPLIANT] * 3,
+        )
+        self.assertIn("another crossing", outcomes[1][1])
+
+    def test_scene_scope_keeps_person_prohibitive_signal(self) -> None:
+        policy = JaywalkingPolicy({"context_scope": "scene"})
+        outcomes = policy.decide_all(
+            [context(crosswalk=Ternary.YES), context(prohibitive=Ternary.YES)]
+        )
+        self.assertEqual(outcomes[1][0], DecisionLabel.JAYWALKING)
+
+
+    def test_strict_absence_blocks_positive_on_any_infrastructure_doubt(self) -> None:
+        policy = JaywalkingPolicy(
+            {
+                "permission_cues": ["marked_crosswalk", "permissive_pedestrian_signal"],
+                "prohibitive_signal_overrides_crosswalk": False,
+                "strict_absence": True,
+            }
+        )
+        for blocker in (
+            context(sign=Ternary.YES),
+            context(guard=Ternary.UNCERTAIN),
+            context(prohibitive=Ternary.YES),
+        ):
+            label, _ = policy.decide(blocker)
+            self.assertEqual(label, DecisionLabel.UNCERTAIN)
+        label, _ = policy.decide(context())
+        self.assertEqual(label, DecisionLabel.JAYWALKING)
+
+    def test_strict_absence_checks_every_person_in_scene_scope(self) -> None:
+        policy = JaywalkingPolicy({"context_scope": "scene", "strict_absence": True})
+        labels = [
+            label
+            for label, _ in policy.decide_all([context(), context(sign=Ternary.UNCERTAIN)])
+        ]
+        self.assertEqual(labels, [DecisionLabel.UNCERTAIN, DecisionLabel.UNCERTAIN])
+        labels = [label for label, _ in policy.decide_all([context(), context()])]
+        self.assertEqual(labels, [DecisionLabel.JAYWALKING, DecisionLabel.JAYWALKING])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -270,7 +270,11 @@ class JAADContextBenchmark:
                                 for field in CONTEXT_FIELDS
                             },
                             **{
-                                f"predicted_{field}": getattr(context, field).value
+                                f"predicted_{field}": (
+                                    getattr(context, field).value
+                                    if getattr(context, field) is not None
+                                    else "NOT_ASSESSED"
+                                )
                                 for field in CONTEXT_FIELDS
                             },
                             "ground_truth_visibility": _normalise_visibility(row["visibility"]),

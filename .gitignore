@@ -26,6 +26,7 @@ htmlcov/
 config
 *.config
 !default.config
+!strict.config
 secret
 *.secret
 !default.secret

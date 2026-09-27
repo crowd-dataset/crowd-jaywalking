@@ -46,6 +46,7 @@ class RejectionReason(str, Enum):
     CAMERA_MOTION = "CAMERA_MOTION"
     RIDER = "RIDER"
     CLASSIFIER_NEGATIVE = "CLASSIFIER_NEGATIVE"
+    GATE_NEGATIVE = "GATE_NEGATIVE"
 
 
 @dataclass(frozen=True)
@@ -129,19 +130,38 @@ class EvidenceImage:
     trajectory_path: Path | None = None
     control_left_path: Path | None = None
     control_right_path: Path | None = None
+    crossing_path: Path | None = None
+    lower_road_path: Path | None = None
+    tile_paths: tuple[Path, ...] | None = None
 
 
 @dataclass(frozen=True)
 class ContextAssessment:
-    """Structured observable scene context returned by the VLM."""
+    """Structured observable scene context returned by the VLM.
+
+    None means a prompt mode did not assess that field.
+    """
 
     marked_crosswalk: Ternary
-    permissive_pedestrian_signal: Ternary
-    authorised_crossing_sign: Ternary
-    crossing_guard_permission: Ternary
-    prohibitive_pedestrian_signal: Ternary
+    permissive_pedestrian_signal: Ternary | None
+    authorised_crossing_sign: Ternary | None
+    crossing_guard_permission: Ternary | None
+    prohibitive_pedestrian_signal: Ternary | None
     visibility: Visibility
     evidence_summary: str
+    # Any traffic light, for vehicles or pedestrians, at the crossing location.
+    traffic_light: Ternary | None = None
+
+
+@dataclass(frozen=True)
+class InfrastructureMeasurement:
+    """Segmentation pixel counts over the evidence frames of one person."""
+
+    crosswalk_near_path_px: int
+    crosswalk_road_px: int
+    traffic_light_px: int
+    frames: int
+    infrastructure_found: bool
 
 
 @dataclass(frozen=True)
@@ -153,6 +173,7 @@ class PersonDecision:
     reason: str
     event: CrossingEvent
     context: ContextAssessment
+    segmentation: InfrastructureMeasurement | None = None
 
 
 @dataclass(frozen=True)
@@ -166,6 +187,22 @@ class CrossingClassification:
     rule_outcome: str
     event: CrossingEvent
     track_features: dict[str, Any]
+    # Present only when a crossing gate confirms first stage acceptances.
+    gate_probability: float | None = None
+    gate_threshold: float | None = None
+    # Strictest cross validated precision tier the gate probability meets.
+    gate_precision_tier: float | None = None
+
+
+@dataclass(frozen=True)
+class CrossingCheck:
+    """VLM confirmation that one candidate really walks across the carriageway."""
+
+    person_id: int
+    # "gate" for a gate acceptance, "rescue" for a first stage rejection the gate trusts.
+    source: str
+    answer: Ternary
+    evidence_summary: str
 
 
 @dataclass(frozen=True)
@@ -178,6 +215,7 @@ class VideoResult:
     rejected_candidates: list[CrossingEvent]
     latency_seconds: float
     crossing_classifications: list[CrossingClassification] = field(default_factory=list)
+    crossing_checks: list[CrossingCheck] = field(default_factory=list)
 
 
 def to_jsonable(value: Any) -> Any:

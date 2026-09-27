@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import csv
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .config import ProjectConfig
 from .models import DecisionLabel, VideoResult, to_jsonable
-from .vlm import CONTEXT_PROMPT, PROMPT_VERSION
+from .tracking import save_observations_csv
+from .vlm import prompt_content_for_mode, prompt_version_for_mode
 
 
 RESULT_FIELDS = [
@@ -100,6 +102,7 @@ class EvaluationRunner:
         self.results_dir = config.path("results")
         self.details_dir = self.results_dir / "details"
         self.evidence_dir = self.results_dir / "evidence"
+        self.tracking_dir = self.results_dir / "tracking"
         self.results_csv = self.results_dir / "per_video_results.csv"
         self.run_manifest = self.results_dir / "run_manifest.json"
         self.summary_json = self.results_dir / "summary.json"
@@ -135,7 +138,15 @@ class EvaluationRunner:
                     )
 
                 print(f"[{index:03d}/{len(annotations):03d}] Processing {annotation.filename}")
-                result = pipeline.process_video(video_path, self.evidence_dir)
+                # Keep the exact tracks, so person level results can be audited later.
+                started = time.perf_counter()
+                fps, observations = pipeline.tracker.track(video_path)
+                save_observations_csv(
+                    self.tracking_dir / f"{annotation.video_id}.csv", observations
+                )
+                result = pipeline.process_observations(
+                    video_path, self.evidence_dir, fps, observations, started=started
+                )
                 details_path = self._save_details(annotation, result)
                 row = {
                     "video_id": annotation.video_id,
@@ -167,7 +178,11 @@ class EvaluationRunner:
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.details_dir.mkdir(parents=True, exist_ok=True)
         self.evidence_dir.mkdir(parents=True, exist_ok=True)
-        fingerprint = self.config.fingerprint(f"{PROMPT_VERSION}\n{CONTEXT_PROMPT}")
+        mode = self.config.vlm_settings()["prompt_mode"]
+        prompt_version = prompt_version_for_mode(mode)
+        fingerprint = self.config.fingerprint(
+            f"{prompt_version}\n{prompt_content_for_mode(mode)}"
+        )
 
         if self.run_manifest.exists():
             with self.run_manifest.open("r", encoding="utf-8") as handle:
@@ -183,7 +198,7 @@ class EvaluationRunner:
 
         payload = {
             "pipeline_version": "1.1.0",
-            "prompt_version": PROMPT_VERSION,
+            "prompt_version": prompt_version,
             "fingerprint": fingerprint,
             "annotation_count": total,
             "evaluation_split": self.selected_split,

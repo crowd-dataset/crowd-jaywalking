@@ -74,6 +74,17 @@ OPTIONAL_GATE_DEFAULTS = {
     "crossing_rescue_min_gate": None,
 }
 
+# Stage 3, run by run_jaywalking_law.py after stages 1 and 2. The model defaults to
+# vlm_model. CROWD segments carry their own location; the country, state, and
+# locality here apply to runs without one, such as JAAD.
+OPTIONAL_LAW_DEFAULTS = {
+    "jaywalking_law_rules": "configs/jaywalking_rules.json",
+    "jaywalking_law_model": None,
+    "jaywalking_law_country": None,
+    "jaywalking_law_state": None,
+    "jaywalking_law_locality": None,
+}
+
 OPTIONAL_CROWD_DEFAULTS = {
     "mapping": "mapping.csv",
     "ftp_server": "https://files.mobility-squad.com/",
@@ -466,6 +477,20 @@ class ProjectConfig:
             "strict_absence": bool(
                 self.raw.get("strict_absence", OPTIONAL_POLICY_DEFAULTS["strict_absence"])
             ),
+        }
+
+    def jaywalking_law_settings(self) -> dict[str, Any]:
+        """Return settings for stage 3, the country specific jaywalking rule sets."""
+
+        value = lambda name: self.raw.get(name, OPTIONAL_LAW_DEFAULTS[name])
+        return {
+            "rules": self._resolved_optional_path(
+                "jaywalking_law_rules", OPTIONAL_LAW_DEFAULTS["jaywalking_law_rules"]
+            ),
+            "vlm": self.vlm_settings(model_id=value("jaywalking_law_model")),
+            "country": value("jaywalking_law_country"),
+            "state": value("jaywalking_law_state"),
+            "locality": value("jaywalking_law_locality"),
         }
 
     def crossing_gate_settings(self) -> dict[str, Any]:

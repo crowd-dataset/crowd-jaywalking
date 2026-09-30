@@ -84,6 +84,8 @@ The committed v1.5 configuration models the ego corridor as a trapezoid that wid
 ├── compare_jaad_context_models.py
 ├── run_crowd_analysis.py
 ├── run_jaad_person_audit.py  # runs a profile on a JAAD split and audits every claimed person
+├── run_jaywalking_law.py     # stage 3: country law over the saved claims of a finished run
+├── build_jaywalking_rules.py # builds configs/jaywalking_rules.json from Global_Jaywalking_Laws.pdf
 ├── compute_jaad_camera_motion.py  # BoT-SORT camera motion for saved JAAD tracks
 ├── jaad_front_crossing_annotator.html
 ├── jaad_observable_context_annotator.html
@@ -96,6 +98,8 @@ The committed v1.5 configuration models the ego corridor as a trapezoid that wid
 │   ├── model_crossing.py            # applies the frozen classifier to tracks
 │   ├── track_features.py            # inference safe track features
 │   ├── crowd_analysis.py
+│   ├── crowd_city_crossing.py       # crowd-city's crossing detector applied to tracks
+│   ├── crowd_city_detection.py      # vendored copy of crowd-city's detector
 │   ├── crowd_source.py              # CROWD mapping, download, and segment extraction
 │   ├── evidence.py
 │   ├── evaluation.py
@@ -104,6 +108,8 @@ The committed v1.5 configuration models the ego corridor as a trapezoid that wid
 │   ├── jaad_context.py              # context audit sample and evidence
 │   ├── jaad_context_evaluation.py
 │   ├── jaad_person_audit.py         # person level claim audit against JAAD labels
+│   ├── jaywalking_law.py            # stage 3: country rule sets and their decision rules
+│   ├── law_stage.py                 # stage 3 over saved JAAD or CROWD claims
 │   ├── models.py
 │   ├── pipeline.py
 │   ├── policy.py
@@ -498,6 +504,38 @@ For the most reliable CROWD data, keep people with `gate_precision_tier` of at l
 These are small samples. They show high precision, not 100% precision.
 
 Set `crossing_gate_model` to the trained artifact to enable the gate. When the key is absent, the gate is disabled and legacy configurations keep their fingerprints. A configured gate file that is missing stops the run rather than being skipped.
+
+## Stage 3: the jaywalking law of the country
+
+Stages 1 and 2 find the people who cross the road in front of the camera car without a zebra crossing and without a traffic light: crowd-city's crossing detector proposes the snippets, and the VLM confirms the crossing and the absence of infrastructure. Whether that is jaywalking depends on the country, so stage 3 is a separate step, run afterwards on the saved claims and evidence, that applies the country's rule set from `Global_Jaywalking_Laws.pdf` (51 countries, edition 3, March 2026). Because it runs on its own, it can use a different model (`jaywalking_law_model`, default `vlm_model`) without sharing GPU memory with stage 2.
+
+```powershell
+# CROWD: the country, state, and city of each segment come from mapping.csv
+uv run python .\run_jaywalking_law.py results\crowd_jaywalking_v2
+# JAAD has no per video country, so give one or more
+uv run python .\run_jaywalking_law.py results\jaad_crowd_city_vlm_v3 --country CAN --country UKR
+```
+
+Results go to `<results>/jaywalking_law/`: `verdicts.jsonl` (with the exact prompt of every call), `verdicts.csv`, and `summary.json`. A rerun skips claims already judged.
+
+* `build_jaywalking_rules.py` turns the PDF into `configs/jaywalking_rules.json`: per country, its numbered required and trigger conditions (for example `SGP-R3`), the thresholds the research leaves unspecified, and its decision rule. When an updated PDF arrives, rebuild the file (needs `pdftotext`) and rerun stage 3; stages 1 and 2 do not need to run again:
+
+  ```powershell
+  uv run python .\build_jaywalking_rules.py data\Global_Jaywalking_Laws.pdf configs\jaywalking_rules.json
+  ```
+
+* For each claim, `jaywalking_law.py` retrieves only that country's rule set and asks the VLM for YES, NO, or UNKNOWN on each condition, citing the IDs. The label (`JAYWALKING`, `NOT_JAYWALKING`, or `INSUFFICIENT_EVIDENCE`) is computed from those verdicts with the rule set's decision rule, never taken from the model. An UNKNOWN on a deciding condition gives `INSUFFICIENT_EVIDENCE`.
+* Condition R2 (crossing, or has entered, the roadway) comes from stages 1 and 2. The United States jurisdiction conditions come from the location: Texas and Florida enforce, New York City is decriminalised, California needs an immediate collision hazard (`USA-R4`), and any other state stays UNKNOWN, as the rule set requires.
+* Ireland, New Zealand, Sweden, and the United Kingdom have no offense (always `NOT_JAYWALKING`). Greece, India, Mexico, Nigeria, Pakistan, and Zimbabwe have no specified conditions (always `INSUFFICIENT_EVIDENCE`). Countries without a rule set are recorded as `NO_RULE_SET`.
+
+The rule sets cover 51 of the 238 CROWD countries and 87.6% of its hours; the United States alone is 8,964 hours. On the 23 JAAD claims of the crowd-city + VLM design every claim was `JAYWALKING` under Canada and Ukraine (crossing outside a designated crossing) and `NOT_JAYWALKING` under Australia (no crossing within 20 metres, `AUS-R3`).
+
+Limits:
+
+* Stage 3 only sees crossings without a zebra crossing or traffic light, so offenses of crossing against a red signal (for example `DEU-T2`, `CHE-T1`) are out of scope.
+* On JAAD the VLM answered R1 (public road, not private property) YES for all 23 claims, including the 9 in videos JAAD labels as parking lots, so private car parks are not yet reliably excluded.
+* "Designated crossing" is judged as a marked crossing or signal. Some jurisdictions, such as Ontario, also treat an unmarked intersection as a crossing.
+* The PDF leaves the distance to an available crossing unspecified for 29 countries and has no state table for the United States, so many claims there end as `INSUFFICIENT_EVIDENCE`.
 
 ## Strict mode
 

@@ -777,6 +777,21 @@ class HuggingFaceContextClassifier:
             str(payload["evidence_summary"]).strip(),
         )
 
+    def evaluate_law(self, evidence: list[EvidenceImage], prompt: str) -> dict[str, Any]:
+        """Stage 3: per-condition verdicts for one country's jaywalking rule set."""
+
+        if not evidence:
+            raise VLMError("No evidence images were supplied to the VLM")
+        self.ensure_ready()
+        return self._decode_payload(
+            self._classify_task(
+                _sample_evidence(evidence, self.task_max_frames),
+                prompt,
+                ("trajectory map", "full scene"),
+                "jaywalking law",
+            )
+        )
+
     def _classify_task(
         self,
         evidence: list[EvidenceImage],

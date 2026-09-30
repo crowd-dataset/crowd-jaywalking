@@ -85,6 +85,7 @@ class JaywalkingPipeline:
         self._infrastructure_span = config.evidence_settings()["infrastructure_span"]
         self.policy = JaywalkingPolicy(config.policy_settings())
 
+
     def process_video(self, video_path: str | Path, evidence_root: str | Path) -> VideoResult:
         """Process one video and return video and person level decisions."""
 
@@ -172,6 +173,7 @@ class JaywalkingPipeline:
             assessed.append((event, self.context_classifier.classify(evidence)))
 
         outcomes = self.policy.decide_all([context for _, context in assessed])
+
         decisions = [
             PersonDecision(
                 person_id=event.person_id,

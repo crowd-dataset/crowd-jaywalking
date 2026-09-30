@@ -1,0 +1,1677 @@
+{
+  "source": "Global_Jaywalking_Laws.pdf",
+  "edition": "Edition 3, last updated March 20, 2026",
+  "countries": {
+    "AUS": {
+      "number": 1,
+      "iso": "AUS",
+      "name": "Australia",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Strict",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "AUS-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "AUS-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "AUS-R3",
+          "text": "A pedestrian crossing (zebra crossing or traffic signal) is located within 20 metres of the pedestrian."
+        },
+        {
+          "id": "AUS-R4",
+          "text": "Pedestrian does not use that available crossing."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (State and Territory Road Rules)",
+      "fines": "Varies by state; ranges from AUD 77 in New South Wales (NSW Roads Act 1993 s. 125) to AUD 100+ in Queensland and Victoria. Police issue immediate on-the-spot infringement notices.",
+      "details": "Pedestrians are legally mandated to use a pedestrian crossing (such as zebra crossings or traffic signals) if they are within 20 meters of one. These traffic regulations apply strictly to public roads and thoroughfares; internal pedestrian movement within private shopping centers, commercial retail complexes, or university campuses is exempt from these statutory provisions.",
+      "source": "NSW Roads Act 1993"
+    },
+    "AUT": {
+      "number": 2,
+      "iso": "AUT",
+      "name": "Austria",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "AUT-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "AUT-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "AUT-R3",
+          "text": "A designated pedestrian crossing (crosswalk, underpass, or overpass) is available within a short distance."
+        },
+        {
+          "id": "AUT-R4",
+          "text": "Pedestrian does not use that available crossing."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Exact metric distance defining “short distance” — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (StVO § 76 - Straßenverkehrsordnung)",
+      "fines": "Administrative fines up to €72 for violations of pedestrian right-of-way and crossing rules.",
+      "details": "Pedestrians must use designated pedestrian crossings (crosswalks, underpasses, overpasses) if they are available within a short distance. Enforcement is notably stricter in urban centers like Vienna compared to rural municipalities. Jurisdiction is strictly limited to public traffic zones.",
+      "source": "RIS Austria (StVO § 76)"
+    },
+    "BEL": {
+      "number": 3,
+      "iso": "BEL",
+      "name": "Belgium",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Lenient",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "BEL-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "BEL-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "BEL-R3",
+          "text": "A designated crossing point is located nearby."
+        },
+        {
+          "id": "BEL-R4",
+          "text": "Pedestrian does not cross at that designated point."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Metric distance defining “nearby” — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Code de la Route / Wegverkeersreglement)",
+      "fines": "Theoretical statutory fines up to €55, though very rarely imposed in practice.",
+      "details": "The Belgian Highway Code requires pedestrians to cross at designated points when nearby. However, cultural norms heavily lean toward pedestrian freedom, and police routinely prioritize vehicular and cyclist safety over mid-block pedestrian infractions on public roads. Private retail and campus walkways are excluded.",
+      "source": "Wegcode Belgium"
+    },
+    "BRA": {
+      "number": 4,
+      "iso": "BRA",
+      "name": "Brazil",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "BRA-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "BRA-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "BRA-T1",
+          "text": "Pedestrian crosses outside a crosswalk at a location where traffic is controlled."
+        },
+        {
+          "id": "BRA-T2",
+          "text": "A pedestrian bridge exists at the location and the pedestrian does not use it."
+        }
+      ],
+      "not_specified": [],
+      "decision": "required_and_any_trigger",
+      "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Código de Trânsito Brasileiro - CTB Art. 254)",
+      "fines": "Fines approximate BRL 88, classified under traffic infractions.",
+      "details": "CTB Article 254 explicitly prohibits pedestrians from crossing roads outside crosswalks where traffic is controlled or pedestrian bridges exist. Enforcement is heavily concentrated in major metropolitan centers like São Paulo and Rio de Janeiro, while rural and suburban areas experience virtually zero enforcement. Restricted strictly to public roadways.",
+      "source": "Planalto Brazil (CTB)"
+    },
+    "CAN": {
+      "number": 5,
+      "iso": "CAN",
+      "name": "Canada",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "CAN-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking). Provincial Highway Traffic Acts govern public highways, municipal streets and public thoroughfares exclusively."
+        },
+        {
+          "id": "CAN-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "CAN-R3",
+          "text": "Pedestrian crosses outside a designated crossing on a public highway or municipal street."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Province-specific distance thresholds and crossing definitions — Not specified in source research (varies by provincial statute)."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Provincial Highway Traffic Acts)",
+      "fines": "Regulated at the provincial level; fines range from $35 to $167 CAD depending on the province (e.g., Ontario Highway Traffic Act s. 144, British Columbia Motor Vehicle Act s. 179).",
+      "details": "Enforcement varies widely by municipality, with active ticketing in high-density downtown cores like Toronto and Vancouver. Spatial Jurisdiction Clarification: These provincial statutes govern public highways, municipal streets, and public thoroughfares exclusively. Pedestrian movement inside private property, enclosed shopping malls, corporate office parks, or university campuses is entirely outside the scope of traffic acts and is never legally classified or penalized as jaywalking.",
+      "source": "Ontario Highway Traffic Act"
+    },
+    "CHN": {
+      "number": 6,
+      "iso": "CHN",
+      "name": "China",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Strict",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "CHN-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "CHN-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "CHN-T1",
+          "text": "Pedestrian crosses outside a designated crossing."
+        },
+        {
+          "id": "CHN-T2",
+          "text": "Pedestrian disobeys the pedestrian traffic signal."
+        }
+      ],
+      "not_specified": [],
+      "decision": "required_and_any_trigger",
+      "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Road Traffic Safety Law Art. 61)",
+      "fines": "Statutory fines up to CNY 50, frequently paired with mandatory traffic safety education classes.",
+      "details": "Pedestrians must strictly utilize designated crossings and obey traffic signals. Major urban hubs like Shenzhen and Shanghai utilize advanced AI facial-recognition camera systems integrated with public digital screens to instantly identify, fine, and publicly shame jaywalkers. Applies strictly to public roads.",
+      "source": "Central Government of China"
+    },
+    "DNK": {
+      "number": 7,
+      "iso": "DNK",
+      "name": "Denmark",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Lenient",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "DNK-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "DNK-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "DNK-R3",
+          "text": "A designated crossing is available at the location."
+        },
+        {
+          "id": "DNK-R4",
+          "text": "Pedestrian does not use that available crossing."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance threshold triggering the obligation — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal but culturally tolerated (Færdselsloven)",
+      "fines": "Official fines exist at DKK 500, but are rarely levied against pedestrians.",
+      "details": "The Danish Road Traffic Act mandates the use of crossings. While Danish pedestrian culture is generally rule-abiding, police enforcement efforts target cyclists and motor vehicles rather than mid-block pedestrian crossings on public streets. Private spaces are exempt.",
+      "source": "Retsinformation Denmark"
+    },
+    "EST": {
+      "number": 8,
+      "iso": "EST",
+      "name": "Estonia",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "EST-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "EST-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "EST-R3",
+          "text": "A designated crossing is available within 30 metres of the pedestrian."
+        },
+        {
+          "id": "EST-R4",
+          "text": "Pedestrian does not use that available crossing."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Traffic Act § 43)",
+      "fines": "Minor regulatory fines up to €20.",
+      "details": "Pedestrians are required to use designated crossings if one is available within 30 meters. Enforcement is active and reasonable within Tallinn, but minimal in rural counties. Applies to public road infrastructure.",
+      "source": "Riigi Teataja Estonia"
+    },
+    "FIN": {
+      "number": 9,
+      "iso": "FIN",
+      "name": "Finland",
+      "legal_status": "REGULATED",
+      "enforcement": "Lenient",
+      "rule_set": "CODIFIED DUTY",
+      "required": [
+        {
+          "id": "FIN-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "FIN-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "FIN-R3",
+          "text": "A crosswalk is available at the location."
+        },
+        {
+          "id": "FIN-R4",
+          "text": "Pedestrian does not use the available crosswalk."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance threshold triggering the obligation — Not specified in source research. Codified duty only: the research records minimal to no formal monetary penalty. A YES result indicates non-compliance with the Road Traffic Act, not a fineable offense. DECISION RULE All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Regulated (Road Traffic Act 729/2018)",
+      "fines": "Minimal to no formal monetary penalties enforced for pedestrian crossings.",
+      "details": "The updated Road Traffic Act maintains that pedestrians should utilize crosswalks, but societal compliance is exceptionally high, rendering formal police enforcement virtually nonexistent. Public road jurisdiction only.",
+      "source": "Finlex Finland"
+    },
+    "FRA": {
+      "number": 10,
+      "iso": "FRA",
+      "name": "France",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Lenient",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "FRA-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "FRA-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "FRA-R3",
+          "text": "A marked pedestrian crossing is located within 50 metres of the pedestrian."
+        },
+        {
+          "id": "FRA-R4",
+          "text": "Pedestrian does not use that marked crossing."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Code de la Route Art. R. 412-34)",
+      "fines": "Standard Class 1 contravention fine of €4.",
+      "details": "Pedestrians are legally required to cross at marked pedestrian crossings if they are within 50 meters. In practice, this law is widely disregarded by the public, and enforcement by police is extremely rare outside of special safety trials on public highways.",
+      "source": "Légifrance France"
+    },
+    "DEU": {
+      "number": 11,
+      "iso": "DEU",
+      "name": "Germany",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "DEU-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "DEU-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "DEU-T1",
+          "text": "A crossing is available at the location and the pedestrian does not use it."
+        },
+        {
+          "id": "DEU-T2",
+          "text": "Pedestrian crosses against a red pedestrian signal (Rotlichtverstoß)."
+        }
+      ],
+      "not_specified": [
+        "Distance threshold defining “where available” — Not specified in source research."
+      ],
+      "decision": "required_and_any_trigger",
+      "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (StVO § 25 - Straßenverkehrs-Ordnung)",
+      "fines": "Minor warning fines (“Verwarnungsgeld”) ranging from €5 to €10 for crossing against red signals (“Rotlichtverstoß”).",
+      "details": "Pedestrians must use crossings where available and obey pedestrian signals. Social pressure and community self-policing serve as much stronger deterrents than formal police enforcement on public streets. Private campuses and malls are excluded.",
+      "source": "Gesetze im Internet Germany"
+    },
+    "GRC": {
+      "number": 12,
+      "iso": "GRC",
+      "name": "Greece",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Lenient",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "GRC-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "GRC-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Operative statutory conditions under Highway Code Art. 38 — Not specified in source research. The research records only that jaywalking is prohibited by the Highway Code."
+      ],
+      "decision": "fixed_insufficient_evidence",
+      "decision_text": "Because the source research does not specify the operative statutory conditions, the decisive condition is permanently UNKNOWN. Default output → INSUFFICIENT_EVIDENCE unless a jurisdiction-specific statute is supplied to the pipeline.",
+      "legal_basis": "Illegal (Highway Code Art. 38)",
+      "fines": "Statutory fines exist on paper but are rarely issued.",
+      "details": "While prohibited by the Greek Highway Code, jaywalking is culturally widespread across urban centers. Athens and Thessaloniki feature chaotic pedestrian traffic dynamics with minimal active police intervention on public roads.",
+      "source": "E-Nomothesia Greece"
+    },
+    "HUN": {
+      "number": 13,
+      "iso": "HUN",
+      "name": "Hungary",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "HUN-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "HUN-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "HUN-T1",
+          "text": "Pedestrian crosses outside a designated crosswalk."
+        },
+        {
+          "id": "HUN-T2",
+          "text": "Pedestrian disobeys the traffic light."
+        }
+      ],
+      "not_specified": [],
+      "decision": "required_and_any_trigger",
+      "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (KRESZ § 21 - Közúti Közlekedési Szabályok)",
+      "fines": "Administrative fines up to HUF 30,000 (~€75).",
+      "details": "Pedestrians are mandated to use designated crosswalks and obey traffic lights. Enforcement is active within central Budapest, while rural areas experience much lower oversight. Public road jurisdiction.",
+      "source": "Nemzeti Jogszabálytár Hungary"
+    },
+    "IND": {
+      "number": 14,
+      "iso": "IND",
+      "name": "India",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Lenient",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "IND-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "IND-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Operative statutory conditions under the Motor Vehicles Act 1988 s. 279 / Central Motor Vehicles Rules — Not specified in source research. The research records only that jaywalking is technically an offense."
+      ],
+      "decision": "fixed_insufficient_evidence",
+      "decision_text": "Because the source research does not specify the operative statutory conditions, the decisive condition is permanently UNKNOWN. Default output → INSUFFICIENT_EVIDENCE unless a jurisdiction-specific statute is supplied to the pipeline.",
+      "legal_basis": "Illegal (Motor Vehicles Act 1988 s. 279 / Central Motor Vehicles Rules)",
+      "fines": "Nominal fine of INR 100 under legacy provisions.",
+      "details": "Jaywalking is technically an offense, but enforcement is virtually non-existent due to severe pedestrian infrastructure deficits, lack of functioning sidewalks, and sparse crosswalk availability across major urban public roads.",
+      "source": "India Code"
+    },
+    "IDN": {
+      "number": 15,
+      "iso": "IDN",
+      "name": "Indonesia",
+      "legal_status": "REGULATED",
+      "enforcement": "Lenient",
+      "rule_set": "CODIFIED DUTY",
+      "required": [
+        {
+          "id": "IDN-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "IDN-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "IDN-T1",
+          "text": "A sidewalk is provided and the pedestrian does not use it."
+        },
+        {
+          "id": "IDN-T2",
+          "text": "Pedestrian crosses outside a designated crossing facility."
+        }
+      ],
+      "not_specified": [
+        "Distance thresholds triggering the obligation — Not specified in source research."
+      ],
+      "decision": "required_and_any_trigger",
+      "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Regulated (Law No. 22/2009 on Road Traffic and Transportation)",
+      "fines": "Statutory fines up to IDR 250,000.",
+      "details": "Pedestrians are legally obligated to use sidewalks and designated crossing facilities. Enforcement is minimal, and urban infrastructure frequently fails to support safe compliance on public roadways.",
+      "source": "Database Peraturan BPK Indonesia"
+    },
+    "IRN": {
+      "number": 16,
+      "iso": "IRN",
+      "name": "Iran",
+      "legal_status": "REGULATED",
+      "enforcement": "Moderate",
+      "rule_set": "CODIFIED DUTY",
+      "required": [
+        {
+          "id": "IRN-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "IRN-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "IRN-R3",
+          "text": "Pedestrian crosses at a point other than a designated pedestrian crossing point."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance thresholds and further statutory conditions — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Regulated (National Traffic Regulations)",
+      "fines": "Variable monetary penalties linked to national traffic safety campaigns.",
+      "details": "Traffic rules mandate crossing at designated pedestrian points on public streets. Enforcement is periodic, tied directly to broader governmental traffic safety initiatives, and inconsistently applied.",
+      "source": "Islamic Parliament Research Center of Iran"
+    },
+    "IRL": {
+      "number": 17,
+      "iso": "IRL",
+      "name": "Ireland",
+      "legal_status": "NOT ILLEGAL",
+      "enforcement": "No Specific Law",
+      "rule_set": "NO STATUTORY OFFENSE",
+      "required": [],
+      "triggers": [],
+      "not_specified": [],
+      "decision": "fixed_not_jaywalking",
+      "decision_text": "No statutory jaywalking offense exists. No conditions are evaluated. Fixed output → NOT_JAYWALKING (no applicable offense), regardless of pedestrian behaviour or location.",
+      "legal_basis": "Not explicitly illegal",
+      "fines": "None; no criminal pedestrian fine exists.",
+      "details": "Ireland has no dedicated jaywalking statute. Pedestrians maintain a general civil duty of care under road traffic laws, but crossing mid-block on public roads or private campus environments is not a fineable criminal offense. Civil negligence liability may apply if an accident is caused.",
+      "source": "Irish Statute Book"
+    },
+    "ISR": {
+      "number": 18,
+      "iso": "ISR",
+      "name": "Israel",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "ISR-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "ISR-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "ISR-R3",
+          "text": "Pedestrian crosses outside a designated crosswalk."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance threshold triggering the obligation — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Traffic Ordinance)",
+      "fines": "Administrative fines ranging from ILS 100 to ILS 250.",
+      "details": "Crossing outside designated crosswalks on public roads is a punishable offense. Police execute periodic targeted enforcement campaigns, particularly following spikes in pedestrian traffic fatalities.",
+      "source": "Nevo Legal Database Israel"
+    },
+    "ITA": {
+      "number": 19,
+      "iso": "ITA",
+      "name": "Italy",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Lenient",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "ITA-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "ITA-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "ITA-R3",
+          "text": "A crossing is available at the location."
+        },
+        {
+          "id": "ITA-R4",
+          "text": "Pedestrian does not use the available crossing."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance threshold triggering the obligation — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Codice della Strada Art. 190)",
+      "fines": "Administrative fines ranging from €26 to €102.",
+      "details": "Pedestrians must use crossings on public roads. However, formal enforcement is extremely rare, and mid-block crossing is widespread across urban centers, particularly in Rome and southern Italy.",
+      "source": "Normattiva Italy"
+    },
+    "JPN": {
+      "number": 20,
+      "iso": "JPN",
+      "name": "Japan",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Strict",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "JPN-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "JPN-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "JPN-T1",
+          "text": "Pedestrian crosses outside a designated crossing."
+        },
+        {
+          "id": "JPN-T2",
+          "text": "Pedestrian disobeys the pedestrian signal."
+        }
+      ],
+      "not_specified": [],
+      "decision": "required_and_any_trigger",
+      "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Road Traffic Law Art. 12 & 13)",
+      "fines": "Severe penalties up to JPY 50,000 in extreme or reckless cases.",
+      "details": "Pedestrians must strictly obey signals and utilize crossings. Japan maintains exceptionally high compliance rates driven by powerful social norms and active police warnings or fine issuance on public streets.",
+      "source": "e-Gov Law Search Japan"
+    },
+    "JOR": {
+      "number": 21,
+      "iso": "JOR",
+      "name": "Jordan",
+      "legal_status": "REGULATED",
+      "enforcement": "Moderate",
+      "rule_set": "CODIFIED DUTY",
+      "required": [
+        {
+          "id": "JOR-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "JOR-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "JOR-R3",
+          "text": "Pedestrian crosses outside a designated pedestrian crossing."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance thresholds and further statutory conditions — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Regulated (Traffic Law No. 49/2008)",
+      "fines": "Fines range from JOD 5 to JOD 20.",
+      "details": "Traffic legislation mandates pedestrian crossing compliance. Enforcement is actively visible in downtown Amman, though compliance drops significantly in residential and suburban sectors. Public road scope.",
+      "source": "Official Gazette of Jordan (LOB)"
+    },
+    "KEN": {
+      "number": 22,
+      "iso": "KEN",
+      "name": "Kenya",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Lenient",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "KEN-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "KEN-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "KEN-R3",
+          "text": "Pedestrian crosses the public road at a non-designated point."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance threshold triggering the obligation — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Traffic Act Cap. 403)",
+      "fines": "Variable administrative penalties.",
+      "details": "The Traffic Act prohibits crossing public roads at non-designated points. Enforcement is sporadic, led periodically by the National Transport and Safety Authority (NTSA), hampered by inadequate pedestrian infrastructure.",
+      "source": "Kenya Law Reports"
+    },
+    "KOR": {
+      "number": 23,
+      "iso": "KOR",
+      "name": "South Korea",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Strict",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "KOR-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "KOR-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "KOR-T1",
+          "text": "Pedestrian crosses outside a crosswalk."
+        },
+        {
+          "id": "KOR-T2",
+          "text": "Pedestrian disobeys the pedestrian traffic signal."
+        }
+      ],
+      "not_specified": [],
+      "decision": "required_and_any_trigger",
+      "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Road Traffic Act Art. 10)",
+      "fines": "Fines range from KRW 20,000 to KRW 40,000.",
+      "details": "Pedestrians must use crosswalks and obey traffic signals on public roads. High compliance is achieved through rigorous enforcement, social culture, and automated CCTV-assisted tracking in major cities.",
+      "source": "National Law Information Center South Korea"
+    },
+    "LVA": {
+      "number": 24,
+      "iso": "LVA",
+      "name": "Latvia",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "LVA-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "LVA-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "LVA-T1",
+          "text": "A marked crossing is available and the pedestrian crosses at a different spot."
+        },
+        {
+          "id": "LVA-T2",
+          "text": "No marked crossing is available and the pedestrian does not cross perpendicularly (at right angles) across the road."
+        }
+      ],
+      "not_specified": [
+        "Distance threshold defining when a marked crossing counts as “available” — Not specified in source research."
+      ],
+      "decision": "required_and_any_trigger",
+      "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Road Traffic Regulations § 60)",
+      "fines": "Fines range from €10 to €20.",
+      "details": "Pedestrians must cross at marked spots or, where absent, perpendicularly at right angles across the road. Enforcement is active in Riga but limited elsewhere on public roads.",
+      "source": "Likumi Latvia"
+    },
+    "LTU": {
+      "number": 25,
+      "iso": "LTU",
+      "name": "Lithuania",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "LTU-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "LTU-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "LTU-R3",
+          "text": "A pedestrian crossing is available at the location."
+        },
+        {
+          "id": "LTU-R4",
+          "text": "Pedestrian does not use the available crossing."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance threshold triggering the obligation — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Road Traffic Rules Art. 111)",
+      "fines": "Fines range from €15 to €30.",
+      "details": "Mandatory use of pedestrian crossings where available on public roadways. Moderate enforcement is maintained by municipal police in Vilnius and Kaunas.",
+      "source": "e-Seimas Lithuania"
+    },
+    "MYS": {
+      "number": 26,
+      "iso": "MYS",
+      "name": "Malaysia",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "MYS-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "MYS-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "MYS-R3",
+          "text": "Pedestrian crosses outside a designated crossing."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance threshold triggering the obligation — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Road Transport Act 1987 s. 79)",
+      "fines": "Statutory fines up to MYR 300.",
+      "details": "Pedestrians must use designated crossings on public roads. Royal Malaysia Police (PDRM) and JPJ conduct periodic enforcement operations, with stricter monitoring enforced in Kuala Lumpur.",
+      "source": "Attorney General's Chambers of Malaysia"
+    },
+    "MEX": {
+      "number": 27,
+      "iso": "MEX",
+      "name": "Mexico",
+      "legal_status": "REGULATED",
+      "enforcement": "Lenient",
+      "rule_set": "CODIFIED DUTY",
+      "required": [
+        {
+          "id": "MEX-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "MEX-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Operative conditions under the applicable state or municipal traffic code — Not specified in source research. Federal transit law outlines pedestrian duties, but enforcement and definition are delegated to state and municipal authorities."
+      ],
+      "decision": "fixed_insufficient_evidence",
+      "decision_text": "Because the source research does not specify the operative statutory conditions, the decisive condition is permanently UNKNOWN. Default output → INSUFFICIENT_EVIDENCE unless a jurisdiction-specific statute is supplied to the pipeline.",
+      "legal_basis": "Regulated (State-level Traffic Codes)",
+      "fines": "Nominal fines.",
+      "details": "Federal transit laws outline pedestrian duties, but actual enforcement is delegated to state and municipal authorities. Practical enforcement on public streets is virtually non-existent outside major controlled intersections.",
+      "source": "Cámara de Diputados Mexico"
+    },
+    "NLD": {
+      "number": 28,
+      "iso": "NLD",
+      "name": "Netherlands",
+      "legal_status": "REGULATED",
+      "enforcement": "Lenient",
+      "rule_set": "CODIFIED DUTY",
+      "required": [
+        {
+          "id": "NLD-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "NLD-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "NLD-R3",
+          "text": "A marked crossing is present at the location."
+        },
+        {
+          "id": "NLD-R4",
+          "text": "Pedestrian does not use the marked crossing that is present."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance threshold defining “where present” — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Regulated (RVV 1990 Art. 74 - Reglement verkeersregels en verkeerstekens)",
+      "fines": "Minimal formal fines.",
+      "details": "Pedestrians must use marked crossings where present. Formal fines exist, but active enforcement is rare due to Dutch urban design principles (heavily pedestrianized city centers) that naturally guide pedestrian flow. Public road context.",
+      "source": "Overheid.nl Netherlands"
+    },
+    "NZL": {
+      "number": 29,
+      "iso": "NZL",
+      "name": "New Zealand",
+      "legal_status": "NOT ILLEGAL",
+      "enforcement": "No Specific Law",
+      "rule_set": "NO STATUTORY OFFENSE",
+      "required": [],
+      "triggers": [],
+      "not_specified": [],
+      "decision": "fixed_not_jaywalking",
+      "decision_text": "No statutory jaywalking offense exists. No conditions are evaluated. Fixed output → NOT_JAYWALKING (no applicable offense), regardless of pedestrian behaviour or location.",
+      "legal_basis": "Not explicitly illegal",
+      "fines": "None; no jaywalking fines exist.",
+      "details": "New Zealand removed jaywalking as a specific criminal offense. The Land Transport (Road User) Rule 2004 requires pedestrians to exercise reasonable care, but does not mandate the use of crosswalks or penalize mid-block crossing on public or private pathways.",
+      "source": "New Zealand Legislation"
+    },
+    "NGA": {
+      "number": 30,
+      "iso": "NGA",
+      "name": "Nigeria",
+      "legal_status": "REGULATED",
+      "enforcement": "Lenient",
+      "rule_set": "CODIFIED DUTY",
+      "required": [
+        {
+          "id": "NGA-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "NGA-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Operative conditions under the Federal Road Safety Commission Act — Not specified in source research. The research records only that FRSC regulations address pedestrian crossings on public roads."
+      ],
+      "decision": "fixed_insufficient_evidence",
+      "decision_text": "Because the source research does not specify the operative statutory conditions, the decisive condition is permanently UNKNOWN. Default output → INSUFFICIENT_EVIDENCE unless a jurisdiction-specific statute is supplied to the pipeline.",
+      "legal_basis": "Regulated (Federal Road Safety Commission Act)",
+      "fines": "No standardized fine structure reported for jaywalking specifically.",
+      "details": "FRSC regulations address pedestrian crossings on public roads, but enforcement is severely limited by infrastructure gaps and lack of dedicated pedestrian facilities.",
+      "source": "Federal Road Safety Corps Nigeria"
+    },
+    "NOR": {
+      "number": 31,
+      "iso": "NOR",
+      "name": "Norway",
+      "legal_status": "REGULATED",
+      "enforcement": "Lenient",
+      "rule_set": "CODIFIED DUTY",
+      "required": [
+        {
+          "id": "NOR-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "NOR-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "NOR-R3",
+          "text": "A crossing is available at the location."
+        },
+        {
+          "id": "NOR-R4",
+          "text": "Pedestrian does not use the available crossing."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance threshold triggering the obligation — Not specified in source research. Technically fineable, but the research records enforcement as virtually non-existent. DECISION RULE All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Regulated (Trafikkreglene § 9)",
+      "fines": "Technically fineable, but enforcement is virtually non-existent.",
+      "details": "Pedestrians should use crossings on public roads. High civic compliance ensures that formal police action or penalty issuance is practically unnecessary.",
+      "source": "Lovdata Norway"
+    },
+    "PAK": {
+      "number": 32,
+      "iso": "PAK",
+      "name": "Pakistan",
+      "legal_status": "REGULATED",
+      "enforcement": "Lenient",
+      "rule_set": "CODIFIED DUTY",
+      "required": [
+        {
+          "id": "PAK-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "PAK-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Operative conditions under the Adapted Motor Vehicles Rules — Not specified in source research. The research records only that traffic safety rules exist on paper."
+      ],
+      "decision": "fixed_insufficient_evidence",
+      "decision_text": "Because the source research does not specify the operative statutory conditions, the decisive condition is permanently UNKNOWN. Default output → INSUFFICIENT_EVIDENCE unless a jurisdiction-specific statute is supplied to the pipeline.",
+      "legal_basis": "Regulated (Adapted Motor Vehicles Rules)",
+      "fines": "No standardized fine reported.",
+      "details": "Traffic safety rules exist on paper, but enforcement on public roads is practically non-existent, compounded by sparse pedestrian crossing infrastructure.",
+      "source": "National Highway Authority Pakistan"
+    },
+    "PHL": {
+      "number": 33,
+      "iso": "PHL",
+      "name": "Philippines",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "PHL-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "PHL-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "PHL-R3",
+          "text": "Pedestrian crosses outside a designated pedestrian area."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance threshold triggering the obligation — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Republic Act No. 4136 - Land Transportation and Traffic Code)",
+      "fines": "Fines range from PHP 150 to PHP 500.",
+      "details": "Crossing outside designated pedestrian areas on public roads is prohibited. The Metropolitan Manila Development Authority (MMDA) actively enforces this in Metro Manila, whereas provincial enforcement varies widely.",
+      "source": "Lawphil Philippines"
+    },
+    "POL": {
+      "number": 34,
+      "iso": "POL",
+      "name": "Poland",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "POL-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "POL-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "POL-T1",
+          "text": "A crossing is available and the pedestrian does not use it."
+        },
+        {
+          "id": "POL-T2",
+          "text": "Pedestrian crosses against a red signal."
+        },
+        {
+          "id": "POL-T3",
+          "text": "Pedestrian is using a mobile device while crossing."
+        }
+      ],
+      "not_specified": [
+        "Distance threshold defining “where available” — Not specified in source research."
+      ],
+      "decision": "required_and_any_trigger",
+      "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Prawo o ruchu drogowym Art. 14)",
+      "fines": "Fines range from PLN 50 to PLN 100, increased significantly under recent road safety legislative amendments.",
+      "details": "Pedestrians must use crossings and are strictly prohibited from crossing against red signals or using mobile devices while crossing public roads. Police enforcement has intensified following safety reforms.",
+      "source": "Internetowy System Aktów Prawnych Poland"
+    },
+    "PRT": {
+      "number": 35,
+      "iso": "PRT",
+      "name": "Portugal",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Lenient",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "PRT-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "PRT-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "PRT-R3",
+          "text": "A crosswalk is located within 50 metres of the pedestrian."
+        },
+        {
+          "id": "PRT-R4",
+          "text": "Pedestrian crosses outside that crosswalk."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Código da Estrada Art. 101)",
+      "fines": "Fines range from €60 to €300.",
+      "details": "Crossing outside crosswalks when one is within 50 meters is prohibited on public roads. Enforcement is rare, and pedestrian culture remains informal, particularly in Lisbon and Porto.",
+      "source": "Diário da República Portugal"
+    },
+    "ROU": {
+      "number": 36,
+      "iso": "ROU",
+      "name": "Romania",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "ROU-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "ROU-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "ROU-T1",
+          "text": "Pedestrian crosses outside a crosswalk."
+        },
+        {
+          "id": "ROU-T2",
+          "text": "Pedestrian disobeys the traffic signal."
+        }
+      ],
+      "not_specified": [],
+      "decision": "required_and_any_trigger",
+      "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (OUG 195/2002 Art. 72 - Codul Rutier)",
+      "fines": "Fines range from RON 29 to RON 58.",
+      "details": "Pedestrians must use crosswalks and obey traffic signals on public roads. Traffic police periodically conduct targeted pedestrian compliance operations in Bucharest and major cities.",
+      "source": "Legislatie Just Romania"
+    },
+    "RUS": {
+      "number": 37,
+      "iso": "RUS",
+      "name": "Russia",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Strict",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "RUS-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "RUS-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "RUS-T1",
+          "text": "Pedestrian crosses outside a designated crossing (base penalty tier)."
+        },
+        {
+          "id": "RUS-T2",
+          "text": "Pedestrian's crossing causes an obstruction to traffic (elevated penalty tier)."
+        }
+      ],
+      "not_specified": [
+        "Distance threshold triggering the obligation — Not specified in source research."
+      ],
+      "decision": "required_and_any_trigger",
+      "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (PDD (Traffic Rules) § 4)",
+      "fines": "Administrative fines range from RUB 500 (crossing outside crosswalks) to RUB 1,500 (causing traffic obstructions).",
+      "details": "Pedestrians must use crossings on public roads. State traffic safety inspectors (GIBDD) actively enforce pedestrian regulations in major urban areas.",
+      "source": "Consultant.ru Russia"
+    },
+    "SAU": {
+      "number": 38,
+      "iso": "SAU",
+      "name": "Saudi Arabia",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Strict",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "SAU-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking). Specifically: a public highway or street."
+        },
+        {
+          "id": "SAU-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "SAU-T1",
+          "text": "A pedestrian overpass (jisr) is present at the location and the pedestrian does not use it."
+        },
+        {
+          "id": "SAU-T2",
+          "text": "Pedestrian crosses the public highway or street outside a designated crossing."
+        }
+      ],
+      "not_specified": [
+        "Distance threshold triggering the overpass obligation — Not specified in source research."
+      ],
+      "decision": "required_and_any_trigger",
+      "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Traffic Regulations)",
+      "fines": "Fixed fine of SAR 500.",
+      "details": "Jaywalking on public highways and streets is strictly prohibited and actively penalized. Pedestrian overpasses (jisr) are legally mandatory to use when present. Traffic police enforce strictly in Riyadh and Jeddah.",
+      "source": "Ministry of Interior Saudi Arabia"
+    },
+    "SGP": {
+      "number": 39,
+      "iso": "SGP",
+      "name": "Singapore",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Strict",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "SGP-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "SGP-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "SGP-R3",
+          "text": "A pedestrian crossing or overhead bridge is located within 50 metres of the pedestrian."
+        },
+        {
+          "id": "SGP-R4",
+          "text": "Pedestrian does not use that crossing or overhead bridge."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Road Traffic Act Cap. 276, s. 9)",
+      "fines": "Fines up to SGD 1,000 for a first offense; up to SGD 2,000 or imprisonment for repeat offenders.",
+      "details": "One of the world's strictest jaywalking regimes. Crossing within 50 meters of a pedestrian crossing or overhead bridge without using it is illegal. Traffic Police actively patrol public roads and issue composition fines.",
+      "source": "Singapore Statutes Online"
+    },
+    "ZAF": {
+      "number": 40,
+      "iso": "ZAF",
+      "name": "South Africa",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Lenient",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "ZAF-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "ZAF-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "ZAF-R3",
+          "text": "A crossing is available at the location."
+        },
+        {
+          "id": "ZAF-R4",
+          "text": "Pedestrian does not use the available crossing."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance threshold defining “where available” — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (National Road Traffic Act 93/1996 s. 58)",
+      "fines": "Statutory fines up to ZAR 500.",
+      "details": "Pedestrians must use crossings where available on public roads. Enforcement is highly inconsistent and largely absent in townships and informal settlements due to severe infrastructure gaps.",
+      "source": "South African Government Online"
+    },
+    "ESP": {
+      "number": 41,
+      "iso": "ESP",
+      "name": "Spain",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Lenient",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "ESP-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "ESP-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "ESP-T1",
+          "text": "Pedestrian crosses outside a designated crossing."
+        },
+        {
+          "id": "ESP-T2",
+          "text": "Pedestrian crosses against the pedestrian signal (minor infraction tier)."
+        }
+      ],
+      "not_specified": [
+        "Distance threshold triggering the obligation — Not specified in source research."
+      ],
+      "decision": "required_and_any_trigger",
+      "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Ley de Tráfico Art. 49)",
+      "fines": "Theoretical fines range from €80 to €200.",
+      "details": "Pedestrians must use crossings on public roads; crossing against signals is a minor infraction. In practice, police rarely enforce these rules, and pedestrian behavior remains informal, especially in smaller towns.",
+      "source": "Boletín Oficial del Estado Spain"
+    },
+    "SWE": {
+      "number": 42,
+      "iso": "SWE",
+      "name": "Sweden",
+      "legal_status": "NOT ILLEGAL",
+      "enforcement": "No Specific Law",
+      "rule_set": "NO STATUTORY OFFENSE",
+      "required": [],
+      "triggers": [],
+      "not_specified": [],
+      "decision": "fixed_not_jaywalking",
+      "decision_text": "No statutory jaywalking offense exists. No conditions are evaluated. Fixed output → NOT_JAYWALKING (no applicable offense), regardless of pedestrian behaviour or location.",
+      "legal_basis": "Not explicitly illegal (Trafikförordningen 1998:1276)",
+      "fines": "None; no criminal fines for mid-block pedestrian crossing.",
+      "details": "Swedish traffic law does not criminalize jaywalking. Pedestrians maintain a general duty of care on public and private paths, but mid-block crossing carries no monetary penalty. Societal compliance and mutual road safety respect are exceptionally high.",
+      "source": "Sveriges Riksdag"
+    },
+    "CHE": {
+      "number": 43,
+      "iso": "CHE",
+      "name": "Switzerland",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "CHE-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "CHE-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "CHE-T1",
+          "text": "Pedestrian crosses against a red pedestrian signal (this is the condition the research ties to the fixed CHF 20 fine)."
+        },
+        {
+          "id": "CHE-T2",
+          "text": "A crossing is available at the location and the pedestrian does not use it."
+        }
+      ],
+      "not_specified": [
+        "Distance threshold defining “where available” — Not specified in source research."
+      ],
+      "decision": "required_and_any_trigger",
+      "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (SVG Art. 49 / SSV Art. 47)",
+      "fines": "Fixed fine of CHF 20 for crossing against a red pedestrian signal.",
+      "details": "Pedestrians must use crossings and obey signals on public roads. Swiss civic norms ensure extremely high compliance, supported by moderate, consistent formal enforcement from cantonal police.",
+      "source": "Fedlex Switzerland"
+    },
+    "THA": {
+      "number": 44,
+      "iso": "THA",
+      "name": "Thailand",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Lenient",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "THA-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "THA-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "THA-R3",
+          "text": "Pedestrian crosses outside a designated crossing area."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance threshold triggering the obligation — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Land Traffic Act B.E. 2522 s. 104)",
+      "fines": "Fines range from THB 200 to THB 500.",
+      "details": "Crossing outside designated areas on public roads is prohibited. Enforcement is mostly absent, and pedestrian culture is informal even in Bangkok due to infrastructure limitations.",
+      "source": "Royal Gazette of Thailand"
+    },
+    "TUR": {
+      "number": 45,
+      "iso": "TUR",
+      "name": "Türkiye",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "TUR-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "TUR-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "TUR-R3",
+          "text": "Pedestrian crosses at a location other than a marked crossing location."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance threshold triggering the obligation — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Karayolları Trafik Kanunu No. 2918 Art. 67)",
+      "fines": "Statutory fine of TRY 143 (indexed annually).",
+      "details": "Pedestrians must cross at marked locations on public roads. Traffic police actively enforce this in metropolitan centers like Istanbul and Ankara, while enforcement in rural provinces is sporadic.",
+      "source": "Mevzuat Türkiye"
+    },
+    "UKR": {
+      "number": 46,
+      "iso": "UKR",
+      "name": "Ukraine",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "UKR-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "UKR-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "UKR-T1",
+          "text": "Pedestrian crosses outside a designated crossing."
+        },
+        {
+          "id": "UKR-T2",
+          "text": "Pedestrian disobeys the traffic light."
+        }
+      ],
+      "not_specified": [],
+      "decision": "required_and_any_trigger",
+      "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Rules of the Road (SDA) § 4)",
+      "fines": "Fines range from UAH 170 to UAH 340.",
+      "details": "Pedestrians must use crossings and obey traffic lights on public roads. Enforcement is maintained in Kyiv, though significantly reduced in active conflict-affected regions.",
+      "source": "Verkhovna Rada of Ukraine"
+    },
+    "GBR": {
+      "number": 47,
+      "iso": "GBR",
+      "name": "United Kingdom",
+      "legal_status": "NOT ILLEGAL",
+      "enforcement": "No Specific Law",
+      "rule_set": "NO STATUTORY OFFENSE",
+      "required": [],
+      "triggers": [],
+      "not_specified": [],
+      "decision": "fixed_not_jaywalking",
+      "decision_text": "No statutory jaywalking offense exists. No conditions are evaluated. Fixed output → NOT_JAYWALKING (no applicable offense), regardless of pedestrian behaviour or location.",
+      "legal_basis": "Not illegal",
+      "fines": "None; no criminal pedestrian penalty exists.",
+      "details": "The UK has no jaywalking law. Pedestrians may cross anywhere on public roads or private properties and are not legally required to use crosswalks. The Highway Code provides advisory safety guidelines, but carries no criminal penalty. Pedestrians only face civil liability if negligent crossing directly causes a traffic accident.",
+      "source": "UK Government Highway Code"
+    },
+    "USA": {
+      "number": 48,
+      "iso": "USA",
+      "name": "United States of America",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Moderate",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "USA-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking). Statutes apply strictly to public roadways and streets."
+        },
+        {
+          "id": "USA-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "USA-R3",
+          "text": "Jurisdiction gate: the specific state or municipality retains an enforceable jaywalking prohibition (e.g. Texas, Florida) — i.e. it is NOT a decriminalized jurisdiction such as New York City (decriminalized 2023)."
+        },
+        {
+          "id": "USA-R4",
+          "text": "California branch (AB 2147, Freedom to Walk Act): if the location is in California, an immediate collision hazard exists. If not in California, mark N/A."
+        },
+        {
+          "id": "USA-R5",
+          "text": "Pedestrian crosses outside a designated crossing."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance thresholds and crossing definitions for each individual state or municipal code — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING under that jurisdiction's code. Because the offense is defined stateand municipality-wide, the jurisdiction gate (condition 3) is decisive: if it cannot be resolved from location metadata it must be UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal in most states (State and Municipal Traffic Codes)",
+      "fines": "Fines where enforced range from $25 to $250 USD.",
+      "details": "Jaywalking legislation is entirely state and municipal. Recent legislative trends have seen major decriminalization: California enacted AB 2147 (Freedom to Walk Act), allowing police to cite pedestrians only when an immediate collision hazard exists, and New York City decriminalized jaywalking in 2023. Other states (e.g., Texas, Florida) retain traditional enforcement. Spatial Jurisdiction Clarification: Statutes apply strictly to public roadways and streets; crossing inside private shopping malls, corporate parks, or university campuses does not constitute statutory jaywalking.",
+      "source": "California Legislative Information (AB 2147)"
+    },
+    "VNM": {
+      "number": 49,
+      "iso": "VNM",
+      "name": "Viet Nam",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Lenient",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "VNM-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "VNM-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "VNM-R3",
+          "text": "A crossing is available at the location."
+        },
+        {
+          "id": "VNM-R4",
+          "text": "Pedestrian does not use the available crossing."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance threshold defining “where available” — Not specified in source research."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Law on Road Traffic 2008 Art. 32)",
+      "fines": "Fines range from VND 60,000 to VND 80,000.",
+      "details": "Pedestrians must use crossings where available on public roads. Enforcement is symbolic at best, as local pedestrian culture involves continuous crossing across all points of traffic flow.",
+      "source": "Thư Viện Pháp Luật Viet Nam"
+    },
+    "ZMB": {
+      "number": 50,
+      "iso": "ZMB",
+      "name": "Zambia",
+      "legal_status": "REGULATED",
+      "enforcement": "Lenient",
+      "rule_set": "CODIFIED DUTY",
+      "required": [
+        {
+          "id": "ZMB-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "ZMB-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "ZMB-R3",
+          "text": "Pedestrian crosses outside a designated area on a public road."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance threshold triggering the obligation — Not specified in source research. Classified in the research as a minor infraction. DECISION RULE All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Regulated (Roads and Road Traffic Act Cap. 464)",
+      "fines": "Nominal administrative fines.",
+      "details": "Crossing outside designated areas on public roads is classified as a minor infraction. Enforcement is extremely limited due to inadequate pedestrian infrastructure in Lusaka and regional municipalities.",
+      "source": "National Assembly of Zambia"
+    },
+    "ZWE": {
+      "number": 51,
+      "iso": "ZWE",
+      "name": "Zimbabwe",
+      "legal_status": "REGULATED",
+      "enforcement": "Lenient",
+      "rule_set": "CODIFIED DUTY",
+      "required": [
+        {
+          "id": "ZWE-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "ZWE-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Operative conditions under the Road Traffic Act Chapter 13:11 — Not specified in source research. The research records only that pedestrian crossing rules exist under traffic statutes."
+      ],
+      "decision": "fixed_insufficient_evidence",
+      "decision_text": "Because the source research does not specify the operative statutory conditions, the decisive condition is permanently UNKNOWN. Default output → INSUFFICIENT_EVIDENCE unless a jurisdiction-specific statute is supplied to the pipeline.",
+      "legal_basis": "Regulated (Road Traffic Act Chapter 13:11)",
+      "fines": "Minimal.",
+      "details": "Pedestrian crossing rules exist under traffic statutes. Enforcement is highly limited, with the Zimbabwe Republic Police (ZRP) occasionally conducting sporadic road safety blitzes targeting pedestrian violations. Public road jurisdiction.",
+      "source": "Veritas Zimbabwe"
+    }
+  }
+}

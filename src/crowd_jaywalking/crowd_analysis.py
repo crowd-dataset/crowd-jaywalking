@@ -484,17 +484,13 @@ class CrowdAnalysisRunner:
                         "transition_end_frame": event["transition_end_frame"],
                         "track_start_frame": event["start_frame"],
                         "track_end_frame": event["end_frame"],
-                        "track_frames": features["matched_track_frames"],
-                        "track_duration_seconds": features[
-                            "matched_track_duration_seconds"
-                        ],
-                        "track_x_range": features["matched_track_x_range"],
-                        "track_road_frames": features["matched_track_road_frames"],
-                        "track_start_state": features["matched_track_start_state"],
-                        "track_end_state": features["matched_track_end_state"],
-                        "track_complete_transition": features[
-                            "matched_track_complete_transition"
-                        ],
+                        "track_frames": features.get("matched_track_frames", ""),
+                        "track_duration_seconds": features.get("matched_track_duration_seconds", ""),
+                        "track_x_range": features.get("matched_track_x_range", ""),
+                        "track_road_frames": features.get("matched_track_road_frames", ""),
+                        "track_start_state": features.get("matched_track_start_state", ""),
+                        "track_end_state": features.get("matched_track_end_state", ""),
+                        "track_complete_transition": features.get("matched_track_complete_transition", ""),
                         "jaywalking_label": (
                             decision["label"] if decision else "NOT_EVALUATED"
                         ),

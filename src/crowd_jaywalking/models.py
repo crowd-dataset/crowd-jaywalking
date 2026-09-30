@@ -47,6 +47,7 @@ class RejectionReason(str, Enum):
     RIDER = "RIDER"
     CLASSIFIER_NEGATIVE = "CLASSIFIER_NEGATIVE"
     GATE_NEGATIVE = "GATE_NEGATIVE"
+    SCENE_MOTION_NEGATIVE = "SCENE_MOTION_NEGATIVE"
 
 
 @dataclass(frozen=True)
@@ -154,17 +155,6 @@ class ContextAssessment:
 
 
 @dataclass(frozen=True)
-class InfrastructureMeasurement:
-    """Segmentation pixel counts over the evidence frames of one person."""
-
-    crosswalk_near_path_px: int
-    crosswalk_road_px: int
-    traffic_light_px: int
-    frames: int
-    infrastructure_found: bool
-
-
-@dataclass(frozen=True)
 class PersonDecision:
     """Final decision for one valid crossing person."""
 
@@ -173,7 +163,6 @@ class PersonDecision:
     reason: str
     event: CrossingEvent
     context: ContextAssessment
-    segmentation: InfrastructureMeasurement | None = None
 
 
 @dataclass(frozen=True)

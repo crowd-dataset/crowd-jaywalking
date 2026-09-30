@@ -105,6 +105,29 @@ class ModelCrossingTests(unittest.TestCase):
             [item.gate_precision_tier for item in result.classifications], [0.98, None]
         )
 
+    def test_scene_motion_rule_rejects_camera_pan_only(self) -> None:
+        import numpy as np
+
+        from crowd_jaywalking.camera_motion import CameraMotion
+
+        observations = self._track(1, [0.30, 0.40, 0.50, 0.60, 0.70])
+        detector = ModelCrossingDetector(
+            _AcceptAllClassifier(), self.settings, min_track_frames=3, min_scene_x_range=0.20
+        )
+        self.assertTrue(detector.needs_camera_motion)
+        with self.assertRaises(ValueError):
+            detector.detect(observations, fps=1.0)
+        # The camera pans right, shifting the image 100 px left per frame at width 1000:
+        # the person's 0.40 of image motion is all camera motion.
+        panning = CameraMotion(1000, 500, {f: np.array([[1.0, 0.0, 100.0], [0.0, 1.0, 0.0]]) for f in range(1, 5)})
+        result = detector.detect(observations, fps=1.0, camera_motion=panning)
+        self.assertEqual(result.valid_events, [])
+        self.assertEqual(result.rejected_events[0].rejection_reason, RejectionReason.SCENE_MOTION_NEGATIVE)
+        still = CameraMotion(1000, 500, {})
+        self.assertEqual(
+            [e.person_id for e in detector.detect(observations, fps=1.0, camera_motion=still).valid_events], [1]
+        )
+
     def test_audit_sample_includes_boundary_and_confident_cases(self) -> None:
         rows = []
         for index, probability in enumerate((0.58, 0.99, 0.56, 0.01), start=1):

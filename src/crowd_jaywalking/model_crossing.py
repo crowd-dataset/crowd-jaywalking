@@ -38,19 +38,30 @@ class ModelCrossingDetector:
         crossing_settings: dict[str, Any],
         min_track_frames: int = 5,
         gate: Any | None = None,
+        min_scene_x_range: float | None = None,
     ) -> None:
         if min_track_frames < 1:
             raise ValueError("min_track_frames must be positive")
         self.classifier = classifier
         self.gate = gate
+        # A crossing must move across the scene, not only across the image while
+        # the camera turns: foot point motion with the camera's own motion removed.
+        self.min_scene_x_range = None if min_scene_x_range is None else float(min_scene_x_range)
         self.rule_detector = CrossingDetector(crossing_settings)
         self.extractor = TrackFeatureExtractor(crossing_settings)
         self.min_track_frames = int(min_track_frames)
+
+    @property
+    def needs_camera_motion(self) -> bool:
+        return self.min_scene_x_range is not None or bool(
+            getattr(self.gate, "needs_camera_motion", False)
+        )
 
     def detect(
         self,
         observations: list[TrackObservation],
         fps: float,
+        camera_motion: Any | None = None,
     ) -> ModelCrossingDetectionResult:
         tracks = {
             track_id: track
@@ -67,6 +78,13 @@ class ModelCrossingDetector:
             self.extractor.extract(tracks[track_id], observations, fps)
             for track_id in ordered_ids
         ]
+        if self.needs_camera_motion:
+            if camera_motion is None:
+                raise ValueError("This crossing detector needs camera motion for the video")
+            from .camera_motion import compensated_features
+
+            for track_id, row in zip(ordered_ids, rows):
+                row.update(compensated_features(tracks[track_id], camera_motion))
         probabilities = self.classifier.predict_probabilities(rows)
         gate_probabilities = (
             self.gate.predict_probabilities(rows)
@@ -81,9 +99,20 @@ class ModelCrossingDetector:
             ordered_ids, rows, probabilities, gate_probabilities
         ):
             first_stage = float(probability) >= self.classifier.threshold
-            predicted = first_stage and (
+            gate_accepts = first_stage and (
                 gate_probability is None or float(gate_probability) >= self.gate.threshold
             )
+            scene_moves = (
+                self.min_scene_x_range is None
+                or float(row["scene_x_range"]) >= self.min_scene_x_range
+            )
+            predicted = gate_accepts and scene_moves
+            if not first_stage:
+                reason = RejectionReason.CLASSIFIER_NEGATIVE
+            elif not gate_accepts:
+                reason = RejectionReason.GATE_NEGATIVE
+            else:
+                reason = RejectionReason.SCENE_MOTION_NEGATIVE
             rule_event = rule_events.get(track_id)
             event = self._event(
                 track_id,
@@ -91,9 +120,7 @@ class ModelCrossingDetector:
                 row,
                 predicted,
                 rule_event,
-                RejectionReason.GATE_NEGATIVE
-                if first_stage
-                else RejectionReason.CLASSIFIER_NEGATIVE,
+                reason,
             )
             rule_outcome = self._rule_outcome(rule_event)
             classification = CrossingClassification(

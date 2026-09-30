@@ -26,14 +26,22 @@ import joblib
 import numpy as np
 from sklearn.model_selection import GroupKFold
 
+from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.utils.class_weight import compute_sample_weight
+
+from .camera_motion import COMPENSATED_FEATURES, compensated_features, load_camera_motion_csv
 from .config import ProjectConfig
 from .crossing_classifier import (
     FEATURE_VERSION,
     CrossingClassifier,
     ModelCandidate,
-    _fit_model,
     feature_matrix,
 )
+from .track_features import person_tracks
 from .jaad import JAADDataset
 from .jaad_benchmark import box_iou
 from .model_crossing import ModelCrossingDetector
@@ -82,6 +90,53 @@ def select_precision_threshold(
     return best
 
 
+def gate_matrix(rows: Sequence[dict[str, Any]], extra_features: Sequence[str]) -> np.ndarray:
+    """First stage feature matrix with extra numeric features before the categorical ones."""
+
+    base = feature_matrix(rows)
+    if not extra_features:
+        return base
+    extra = np.array(
+        [[float(row.get(name, np.nan)) for name in extra_features] for row in rows], dtype=object
+    ).reshape(len(rows), len(extra_features))
+    return np.hstack([base[:, :-3], extra, base[:, -3:]])
+
+
+def _fit_gate(
+    candidate: ModelCandidate,
+    seed: int,
+    matrix: np.ndarray,
+    labels: np.ndarray,
+    extra_count: int,
+) -> Pipeline:
+    numeric_count = matrix.shape[1] - 3
+    preprocessor = ColumnTransformer(
+        [
+            ("numeric", Pipeline([("imputer", SimpleImputer(strategy="median")), ("scale", StandardScaler())]), list(range(numeric_count))),
+            ("categorical", Pipeline([("imputer", SimpleImputer(strategy="most_frequent")), ("encode", OneHotEncoder(handle_unknown="ignore", sparse_output=False))]), list(range(numeric_count, matrix.shape[1]))),
+        ],
+        remainder="drop",
+    )
+    model = Pipeline(
+        [
+            ("preprocess", preprocessor),
+            (
+                "classifier",
+                HistGradientBoostingClassifier(
+                    learning_rate=float(candidate.parameters["learning_rate"]),
+                    max_leaf_nodes=int(candidate.parameters["max_leaf_nodes"]),
+                    max_iter=200,
+                    min_samples_leaf=10,
+                    l2_regularization=1.0,
+                    random_state=seed,
+                ),
+            ),
+        ]
+    )
+    model.fit(matrix, labels, classifier__sample_weight=compute_sample_weight("balanced", labels))
+    return model
+
+
 def gate_metrics(labels: np.ndarray, accepted: np.ndarray) -> dict[str, Any]:
     tp = int(np.sum(labels & accepted))
     fp = int(np.sum(~labels & accepted))
@@ -120,6 +175,8 @@ class CrossingGate:
             )
         self.artifact = artifact
         self.model = artifact["pipeline"]
+        # Gates trained with camera compensated motion need those features at inference.
+        self.extra_features = list(artifact.get("extra_features", []))
         self.min_precision = float(min_precision)
         self.threshold = accepted[0]
 
@@ -135,8 +192,15 @@ class CrossingGate:
             raise ValueError(f"Crossing gate artifact is invalid: {source}")
         return cls(artifact, min_precision)
 
+    @property
+    def needs_camera_motion(self) -> bool:
+        return any(name in COMPENSATED_FEATURES for name in self.extra_features)
+
     def predict_probabilities(self, rows: Sequence[dict[str, Any]]) -> np.ndarray:
-        return self.model.predict_proba(feature_matrix(rows))[:, 1]
+        missing = [name for name in self.extra_features if rows and name not in rows[0]]
+        if missing:
+            raise ValueError(f"The crossing gate needs features that were not computed: {missing}")
+        return self.model.predict_proba(gate_matrix(rows, self.extra_features))[:, 1]
 
     def tier(self, probability: float) -> float | None:
         """Return the strictest precision tier this probability meets."""
@@ -172,6 +236,8 @@ class CrossingGateTrainer:
         self.dataset = JAADDataset(config.path("jaad_root"))
         self.output_dir = Path(self.settings["results"])
         self.model_path = Path(self.settings["model"])
+        self.extra_features = list(COMPENSATED_FEATURES) if self.settings["camera_motion"] else []
+        self.camera_motion_dir = self.benchmark_root / "camera_motion"
 
     def run(self) -> dict[str, Any]:
         excluded = self._locked_test_videos()
@@ -190,13 +256,14 @@ class CrossingGateTrainer:
             },
         )
         seed = int(self.settings["random_seed"])
-        matrix = feature_matrix(fit_rows)
+        extra_count = len(self.extra_features)
+        matrix = gate_matrix(fit_rows, self.extra_features)
         groups = np.array([row["video_id"] for row in fit_rows])
         out_of_fold = np.zeros(len(fit_rows), dtype=float)
         for fit_index, score_index in GroupKFold(int(self.settings["cv_folds"])).split(
             matrix, fit_labels, groups
         ):
-            model = _fit_model(candidate, seed, matrix[fit_index], fit_labels[fit_index])
+            model = _fit_gate(candidate, seed, matrix[fit_index], fit_labels[fit_index], extra_count)
             out_of_fold[score_index] = model.predict_proba(matrix[score_index])[:, 1]
 
         tier_thresholds: dict[str, float] = {}
@@ -212,9 +279,9 @@ class CrossingGateTrainer:
             tier_thresholds[str(precision)] = threshold
         tiers = [(float(key), value) for key, value in tier_thresholds.items()]
 
-        final_model = _fit_model(candidate, seed, matrix, fit_labels)
+        final_model = _fit_gate(candidate, seed, matrix, fit_labels, extra_count)
         check_probabilities = (
-            final_model.predict_proba(feature_matrix(check_rows))[:, 1]
+            final_model.predict_proba(gate_matrix(check_rows, self.extra_features))[:, 1]
             if check_rows
             else np.zeros(0)
         )
@@ -236,6 +303,7 @@ class CrossingGateTrainer:
             "parameters": candidate.parameters,
             "tier_thresholds": tier_thresholds,
             "tier_report": tier_report,
+            "extra_features": self.extra_features,
             "fit_splits": ["train", "val"],
             "check_split": "test",
             "excluded_locked_test_videos": sorted(excluded),
@@ -308,15 +376,28 @@ class CrossingGateTrainer:
                 if observation.class_id == 0:
                     boxes[observation.track_id][observation.frame_index] = observation.box
             result = self.detector.detect(observations, fps)
+            scene = {}
+            if self.extra_features:
+                motion_path = self.camera_motion_dir / f"{video_id}.csv"
+                if not motion_path.is_file():
+                    raise FileNotFoundError(
+                        f"No camera motion for {video_id}: {motion_path}. Compute it with "
+                        "crowd_jaywalking.camera_motion before training a camera motion gate."
+                    )
+                motion = load_camera_motion_csv(motion_path)
+                tracks = person_tracks(observations)
             for classification in result.classifications:
                 if not classification.predicted_crossing:
                     continue
+                if self.extra_features:
+                    scene = compensated_features(tracks[classification.person_id], motion)
                 category = self._category(
                     annotations, boxes[classification.person_id], classification.event
                 )
                 rows.append(
                     {
                         **classification.track_features,
+                        **scene,
                         "jaad_split": split,
                         "video_id": video_id,
                         "track_id": classification.person_id,

@@ -16,6 +16,7 @@ ZEBRA_LIGHT_PROMPT_VERSION = "zebra-light-v1"
 ZEBRA_LIGHT_V2_PROMPT_VERSION = "zebra-light-v2"
 ZEBRA_LIGHT_V3_PROMPT_VERSION = "zebra-light-v3"
 ZEBRA_LIGHT_V4_PROMPT_VERSION = "zebra-light-v4"
+ZEBRA_LIGHT_V5_PROMPT_VERSION = "zebra-light-v5"
 PROMPT_VERSION = FOCUSED_PROMPT_VERSION
 PROMPT_MODES = (
     "baseline_v3",
@@ -24,6 +25,7 @@ PROMPT_MODES = (
     "zebra_light_v2",
     "zebra_light_v3",
     "zebra_light_v4",
+    "zebra_light_v5",
 )
 # Signs and signal heads are static, so the controls task needs fewer moments.
 CONTROL_TASK_FRAMES = 2
@@ -249,6 +251,65 @@ crossing_sign:
 
 Output JSON only."""
 
+# Version 5 asks only about infrastructure. The red box is a location marker: the
+# model is told not to judge the person, their position, or their movement, which
+# is decided by the tracking stages instead.
+INFRASTRUCTURE_ONLY_RULE = (
+    "A RED box marks the place to inspect. It contains a person, but the person is not your concern: "
+    "do not judge where the person stands, how they move, or whether they cross. "
+    "Report only the road infrastructure at that place."
+)
+
+MARKINGS_V5_PROMPT = f"""You are inspecting road infrastructure in chronological images from a vehicle dashcam.
+{INFRASTRUCTURE_ONLY_RULE}
+CROSSING CLOSE-UP views are enlarged crops of the road around the red box. ROAD AHEAD views show the whole road between the camera and the red box.
+
+Task: decide whether painted pedestrian crossing markings are on the road at the red box: on the road next to it, within about 20 metres of it, including between the camera and the red box. Ignore side streets.
+
+Return one JSON object with exactly these keys:
+{{
+  "zebra_crossing": "YES|NO|UNCERTAIN",
+  "visibility": "CLEAR|PARTIAL|INSUFFICIENT",
+  "evidence_summary": "one short sentence about the road markings only"
+}}
+
+zebra_crossing:
+- YES when zebra stripes, a ladder pattern, or two parallel painted lines bounding a crosswalk are on that road within about 20 metres of the red box, even if faded, partly covered by snow or vehicles, or small in the distance.
+- NO only when that road surface is clearly visible and has no such markings. Lane lines, centre lines, stop lines, arrows, text, and parking bays are not crossings.
+- UNCERTAIN when faint, worn, or partly hidden stripes might be a crossing, or when the road surface is hidden, dark, or blurred.
+
+visibility:
+- CLEAR when the road surface near the red box is clearly visible in at least one image.
+- PARTIAL when only part of it is visible.
+- INSUFFICIENT when it cannot be judged.
+
+Output JSON only."""
+
+CONTROLS_V5_PROMPT = f"""You are inspecting road infrastructure in dashcam images.
+{INFRASTRUCTURE_ONLY_RULE}
+FULL SCENE views show the whole image. CONTROL TILE views are enlarged, overlapping crops of the upper part of the same images, where traffic lights and road signs usually are.
+
+Task: decide whether traffic lights or pedestrian crossing signs are at the red box, within about 20 metres of it, on the same road. Ignore side streets and junctions far along the road.
+
+Return one JSON object with exactly these keys:
+{{
+  "traffic_light": "YES|NO|UNCERTAIN",
+  "crossing_sign": "YES|NO|UNCERTAIN",
+  "evidence_summary": "one short sentence about lights and signs only"
+}}
+
+traffic_light:
+- YES when any traffic signal head, for vehicles or pedestrians, of any colour, on a pole, mast arm, or overhead wire, is within about 20 metres of the red box.
+- NO when that area is visible and has no signal head. A signal at a junction clearly further along the road is NO.
+- UNCERTAIN when a possible signal head cannot be made out.
+
+crossing_sign:
+- YES when a road sign marking a pedestrian crossing, usually showing a walking person, often blue, yellow, or white, is within about 20 metres of the red box. Such signs are small; check every CONTROL TILE.
+- NO when that area is visible and has no such sign. Other road signs are NO.
+- UNCERTAIN when a sign is there but cannot be read.
+
+Output JSON only."""
+
 CROSSING_CHECK_PROMPT_VERSION = "crossing-check-v1"
 CROSSING_CHECK_PROMPT = """You are inspecting one tracked pedestrian in a vehicle dashcam video.
 The images are chronological moments. The target pedestrian has a RED box. TRAJECTORY MAP views are the full scene with the target's observed foot point path drawn as a YELLOW line ending in an arrow. TARGET DETAIL views are close-ups of the target.
@@ -310,6 +371,28 @@ The yellow path is estimated from a moving camera and may be distorted; judge th
 
 Output JSON only."""
 
+# Version 3 counts only crossings of the road the camera car is driving on, in
+# front of the car; people crossing any other road are not of interest.
+CROSSING_CHECK_V3_PROMPT_VERSION = "crossing-check-v3"
+CROSSING_CHECK_V3_PROMPT = """You are inspecting one tracked pedestrian in a vehicle dashcam video. The camera is mounted in a car (the camera car) looking forward along the road it is driving on.
+The images are chronological moments. The target pedestrian has a RED box. TRAJECTORY MAP views are the full scene with the target's observed foot point path drawn as a YELLOW line ending in an arrow. TARGET DETAIL views are close-ups of the target.
+
+Task: decide whether the target walks across the road the camera car is driving on, in front of the camera car: on the vehicle road surface of that road, ahead of the car, moving from one side of it towards the other during these moments. Crossing only part of that road still counts, if the target is on its vehicle road surface and moving across it.
+
+Return one JSON object with exactly these keys:
+{
+  "crosses_road": "YES|NO|UNCERTAIN",
+  "evidence_summary": "one short sentence"
+}
+
+- YES when the target is on the vehicle road surface of the camera car's road, ahead of the car, and moves across it, not along it.
+- NO when the target crosses a different road: a side street, the far side of a junction across the camera car's path, a road the camera car is not on, or a road seen in the distance.
+- NO when the target walks along the pavement or verge, walks along the road edge, stands or waits at the kerb, walks in a car park away from any road, gets into or out of a vehicle, or is riding a bicycle, scooter, or motorcycle.
+- UNCERTAIN when the target's position or movement cannot be judged from the images.
+The yellow path is estimated from a moving camera and may be distorted; judge the target's real movement relative to the road and kerbs.
+
+Output JSON only."""
+
 # Retained as a single fingerprintable value for manifests and compatibility.
 FOCUSED_CONTEXT_PROMPT = "\n\n".join(
     (
@@ -343,6 +426,7 @@ def prompt_version_for_mode(mode: str) -> str:
         "zebra_light_v2": ZEBRA_LIGHT_V2_PROMPT_VERSION,
         "zebra_light_v3": ZEBRA_LIGHT_V3_PROMPT_VERSION,
         "zebra_light_v4": ZEBRA_LIGHT_V4_PROMPT_VERSION,
+        "zebra_light_v5": ZEBRA_LIGHT_V5_PROMPT_VERSION,
     }[normalise_prompt_mode(mode)]
 
 
@@ -356,6 +440,7 @@ def prompt_content_for_mode(mode: str) -> str:
         "zebra_light_v2": ZEBRA_LIGHT_V2_PROMPT,
         "zebra_light_v3": MARKINGS_V3_PROMPT + "\n\n" + CONTROLS_V3_PROMPT,
         "zebra_light_v4": MARKINGS_V4_PROMPT + "\n\n" + CONTROLS_V4_PROMPT,
+        "zebra_light_v5": MARKINGS_V5_PROMPT + "\n\n" + CONTROLS_V5_PROMPT,
     }[normalise_prompt_mode(mode)]
 
 
@@ -554,12 +639,21 @@ class HuggingFaceContextClassifier:
                 )
             )
 
-        if self.prompt_mode in ("zebra_light_v3", "zebra_light_v4"):
-            listing = self.prompt_mode == "zebra_light_v4"
+        if self.prompt_mode in ("zebra_light_v3", "zebra_light_v4", "zebra_light_v5"):
+            markings_prompt = {
+                "zebra_light_v3": MARKINGS_V3_PROMPT,
+                "zebra_light_v4": MARKINGS_V4_PROMPT,
+                "zebra_light_v5": MARKINGS_V5_PROMPT,
+            }[self.prompt_mode]
+            controls_prompt = {
+                "zebra_light_v3": CONTROLS_V3_PROMPT,
+                "zebra_light_v4": CONTROLS_V4_PROMPT,
+                "zebra_light_v5": CONTROLS_V5_PROMPT,
+            }[self.prompt_mode]
             markings = self._validate_markings_v3_response(
                 self._classify_task(
                     selected,
-                    MARKINGS_V4_PROMPT if listing else MARKINGS_V3_PROMPT,
+                    markings_prompt,
                     ("full scene", "crossing close-up", "road ahead"),
                     "crossing markings",
                 )
@@ -567,7 +661,7 @@ class HuggingFaceContextClassifier:
             controls = self._validate_controls_v3_response(
                 self._classify_task(
                     _sample_evidence(evidence, CONTROL_TASK_FRAMES),
-                    CONTROLS_V4_PROMPT if listing else CONTROLS_V3_PROMPT,
+                    controls_prompt,
                     ("full scene", "control tiles"),
                     "traffic lights and crossing signs",
                 )
@@ -663,7 +757,11 @@ class HuggingFaceContextClassifier:
         if not evidence:
             raise VLMError("No evidence images were supplied to the VLM")
         self.ensure_ready()
-        prompt = {"v1": CROSSING_CHECK_PROMPT, "v2": CROSSING_CHECK_V2_PROMPT}[version]
+        prompt = {
+            "v1": CROSSING_CHECK_PROMPT,
+            "v2": CROSSING_CHECK_V2_PROMPT,
+            "v3": CROSSING_CHECK_V3_PROMPT,
+        }[version]
         payload = self._decode_payload(
             self._classify_task(
                 _sample_evidence(evidence, max_frames or self.task_max_frames),

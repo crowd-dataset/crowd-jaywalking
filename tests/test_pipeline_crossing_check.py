@@ -8,7 +8,6 @@ from crowd_jaywalking.models import (
     CrossingEvent,
     CrossingFeatures,
     DecisionLabel,
-    InfrastructureMeasurement,
     RejectionReason,
     Ternary,
     Visibility,
@@ -33,7 +32,7 @@ class _Classifier:
     def ensure_ready(self):
         pass
 
-    def confirm_crossing(self, evidence):
+    def confirm_crossing(self, evidence, version="v1"):
         return self.crossing_answers[evidence], "summary"
 
     def classify(self, evidence):
@@ -80,7 +79,6 @@ class CrossingCheckPipelineTests(unittest.TestCase):
         pipeline._context_ready = True
         pipeline._vlm_check = True
         pipeline._rescue = rescue
-        pipeline.segmenter = None
         pipeline.policy = JaywalkingPolicy({"strict_absence": True, "context_scope": "scene"})
         return pipeline
 
@@ -93,18 +91,6 @@ class CrossingCheckPipelineTests(unittest.TestCase):
             [(1, "gate", Ternary.NO), (2, "rescue", Ternary.YES)],
         )
         self.assertEqual(result.prediction, DecisionLabel.JAYWALKING)
-
-    def test_segmentation_veto_blocks_the_claim(self):
-        pipeline = self._pipeline({1: Ternary.YES}, None)
-        pipeline.segmenter = SimpleNamespace(
-            measure=lambda source, event, observations, evidence: InfrastructureMeasurement(
-                0, 0, 250, 6, True
-            )
-        )
-        result = pipeline.process_observations("video.mp4", "evidence", 30.0, [])
-        self.assertEqual(result.person_decisions[0].label, DecisionLabel.UNCERTAIN)
-        self.assertIn("Segmentation", result.person_decisions[0].reason)
-        self.assertEqual(result.person_decisions[0].segmentation.traffic_light_px, 250)
 
     def test_uncertain_crossing_check_is_not_accepted(self):
         pipeline = self._pipeline({1: Ternary.UNCERTAIN}, None)

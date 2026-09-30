@@ -15,7 +15,7 @@ Two committed configuration profiles trade recall for precision:
 | Profile | File | Purpose | JAAD precision of positive claims | Recall |
 | --- | --- | --- | --- | --- |
 | Standard | `default.config` | Larger sets, with a measured error rate | about 86 to 93% per person | about 50% |
-| Strict | `strict.config` | Claims that must be correct: every positive is confirmed by independent checks | 26 of 26 on JAAD (9 of 9 held out) | about 23% |
+| Strict | `strict.config` | Claims that must be correct: crossing from tracking only, infrastructure from the VLM | 31 of 32 on JAAD (14 of 15 held out) | about 28% |
 
 See [Strict mode](#strict-mode) for how the strict figure was measured and what it does and does not show.
 
@@ -43,13 +43,12 @@ The video label is `JAYWALKING` when at least one valid crossing person is class
 
 1. YOLO26x detects objects and BoT SORT assigns track IDs.
 2. The frozen JAAD supervised classifier (the first stage) scores every usable person track using only inference safe tracking and motion features.
-3. A high precision crossing gate must also accept every first stage crossing. The first stage was trained only on JAAD pedestrians with behaviour labels, but it scores every track, so on its own it accepts many bystanders. See [Crossing gate](#crossing-gate).
-4. Optionally, the VLM confirms that each candidate really walks across the carriageway (`crossing_vlm_check`), and first stage rejections that the gate strongly trusts can be rescued by that confirmation (`crossing_rescue_min_first_stage`, `crossing_rescue_min_gate`). Both are on in the strict profile.
+3. A high precision crossing gate must also accept every first stage crossing. The first stage was trained only on JAAD pedestrians with behaviour labels, but it scores every track, so on its own it accepts many bystanders. See [Crossing gate](#crossing-gate). With `crossing_gate_camera_motion`, the gate also uses the person's motion relative to the scene: BoT-SORT's own camera motion estimate (GMC) is removed from the foot point path (`camera_motion.py`).
+4. Optionally, `crossing_min_scene_x_range` requires that camera compensated sideways motion, so people who only appear to cross because the car turns are rejected. Optionally, the VLM can also confirm crossings (`crossing_vlm_check`) and rescue first stage rejections (`crossing_rescue_min_first_stage`, `crossing_rescue_min_gate`); the strict profile does not use the VLM for crossing.
 5. The rule detector is retained as an audit feature and can be selected as an explicit fallback, but it does not override classifier decisions in classifier mode.
 6. Six chronological moments centred on the crossing transition are sampled for every accepted person. Each produces a full scene, target detail, trajectory map, road area, a full resolution crossing close-up around the target's feet, the road ahead at full width, and six near native resolution tiles of the upper scene where signals and signs are.
-7. A Hugging Face VLM reports the observable context. The default prompt mode `zebra_light_v3` makes two calls: markings within about 20 metres of the path, from the close-up and road ahead views, and traffic lights and crossing signs, from the tiles. Older modes remain selectable with `vlm_prompt_mode`.
-8. Optionally, an independent street scene segmentation model (Mask2Former trained on Mapillary Vistas) measures crosswalk paint near the path and on the road ahead, and traffic lights in view, at full resolution. When `infrastructure_segmentation_model` is set, any such finding vetoes a positive claim.
-9. A deterministic policy produces the person and video labels.
+7. A Hugging Face VLM reports the observable context. `zebra_light_v3` (standard profile) and `zebra_light_v5` (strict profile) make two calls: markings within about 20 metres, from the close-up and road ahead views, and traffic lights and crossing signs, from the tiles. `zebra_light_v5` only reports infrastructure: the red box marks where to look and the model is told not to judge the person at all. Older modes remain selectable with `vlm_prompt_mode`.
+8. A deterministic policy produces the person and video labels.
 
 The configured tracker is BoT SORT with ReID enabled and the exact parameters in `configs/botsort.yaml`.
 
@@ -85,9 +84,11 @@ The committed v1.5 configuration models the ego corridor as a trapezoid that wid
 ├── compare_jaad_context_models.py
 ├── run_crowd_analysis.py
 ├── run_jaad_person_audit.py  # runs a profile on a JAAD split and audits every claimed person
+├── compute_jaad_camera_motion.py  # BoT-SORT camera motion for saved JAAD tracks
 ├── jaad_front_crossing_annotator.html
 ├── jaad_observable_context_annotator.html
 ├── src/crowd_jaywalking/
+│   ├── camera_motion.py             # BoT-SORT GMC and scene relative track motion
 │   ├── config.py
 │   ├── crossing.py                  # rule based crossing detector and corridor geometry
 │   ├── crossing_classifier.py       # JAAD classifier training, evaluation, and loading
@@ -106,7 +107,6 @@ The committed v1.5 configuration models the ego corridor as a trapezoid that wid
 │   ├── models.py
 │   ├── pipeline.py
 │   ├── policy.py
-│   ├── segmentation.py              # independent crosswalk and traffic light check
 │   ├── tracking.py
 │   ├── vlm.py
 │   └── vlm_comparison.py
@@ -139,7 +139,7 @@ uv run python -c "import torch; print(torch.__version__, torch.cuda.is_available
 
 A CPU build of PyTorch still works but is about 25 times slower for the VLM. `bitsandbytes` is installed so that larger VLMs can be loaded in 4-bit by setting `"vlm_quantization": "4bit"`. The committed profiles leave it unset.
 
-The images sent to the VLM are capped at `vlm_max_pixels` (250880) so that one call stays within 32 GB of VRAM together with the segmentation model. Calls that overflow VRAM on Windows fall back to shared system memory and become tens of times slower, so lower this value on smaller GPUs rather than raising it.
+The images sent to the VLM are capped at `vlm_max_pixels` (250880) so that one call stays within 32 GB of VRAM. Calls that overflow VRAM on Windows fall back to shared system memory and become tens of times slower, so lower this value on smaller GPUs rather than raising it.
 
 ### 2. Create the local configuration
 
@@ -187,7 +187,7 @@ $env:HF_HOME = "D:\huggingface-cache"
 
 You can also set `vlm_cache_dir` in `config` to an absolute path. Leave it as `null` to use the normal Hugging Face cache.
 
-The default VLM is `Qwen/Qwen3-VL-8B-Instruct`. On the automatic JAAD context benchmark it was more precise than `google/gemma-4-12B-it` and `Qwen/Qwen2.5-VL-7B-Instruct` with the same prompt. The strict profile also downloads `facebook/mask2former-swin-large-mapillary-vistas-semantic` (about 830 MB) on first use; check that the Mapillary Vistas licence fits your use. Their weights are large, so allow substantial disk space and GPU or system memory. `device_map: "auto"` lets Accelerate place each model on the available GPU and CPU resources. The first inference downloads the weights from Hugging Face. YOLO26x weights are also downloaded automatically on first use by Ultralytics.
+The default VLM is `Qwen/Qwen3-VL-8B-Instruct`. On the automatic JAAD context benchmark it was more precise than `google/gemma-4-12B-it` and `Qwen/Qwen2.5-VL-7B-Instruct` with the same prompt. Its weights are large, so allow substantial disk space and GPU or system memory. `device_map: "auto"` lets Accelerate place each model on the available GPU and CPU resources. The first inference downloads the weights from Hugging Face. YOLO26x weights are also downloaded automatically on first use by Ultralytics.
 
 ### 4. Prepare the dataset
 
@@ -355,7 +355,7 @@ Tune parameters only with development data. Record every configuration and compa
 ## Current limitations
 
 * Ground truth remains video level. It does not identify which person caused a positive label.
-* The first stage represents the road by a configurable image corridor. Semantic segmentation is used only by the optional infrastructure veto.
+* The first stage represents the road by a configurable image corridor; no semantic segmentation is used.
 * One crossing event is produced per continuous person track segment.
 * The fixed central corridor can miss crossings that occur entirely away from the centre of the image; inspect development videos with no candidate before changing this assumption.
 * VLM context quality depends on infrastructure being visible in the sampled frames.
@@ -501,40 +501,47 @@ Set `crossing_gate_model` to the trained artifact to enable the gate. When the k
 
 ## Strict mode
 
-The strict profile exists for one statement: whenever it claims that a person crossed without a zebra crossing and without a traffic light, the claim is true. A person is claimed only when every independent check agrees:
+The strict profile exists for one statement: whenever it claims that a person crossed without a zebra crossing and without a traffic light, the claim is true. The work is divided so that each component answers only its own question:
 
-1. The crossing gate places the track in the 95% tier, or a first stage rejection is rescued (first stage score of at least 0.25 and gate score of at least 0.98).
-2. The VLM confirms that the person walks across the carriageway.
-3. The VLM reports no zebra crossing, traffic light, or crossing sign, and every other crossing person in the clip reports the same.
-4. Segmentation finds fewer than 50 crosswalk pixels near the person's path, fewer than 1000 on the road ahead, and fewer than 100 traffic light pixels in view.
+* Whether the person crosses comes only from YOLO26x and BoT-SORT tracking: the first stage classifier, the camera motion aware gate at its 95% tier, and at least 0.20 of the image width of sideways motion relative to the scene.
+* Whether a zebra crossing, traffic light, or pedestrian crossing sign is there comes only from the VLM (`zebra_light_v5`, which never judges the person).
+* Every other crossing person in the clip must report no infrastructure either.
 
-Any doubt produces `UNCERTAIN`, never a claim.
+Any doubt produces `UNCERTAIN`, never a claim. The VLM only ever sees the short evidence snippets of accepted crossings, never the full footage.
 
 ### How the precision figure was measured
 
 Reproduce it with:
 
 ```powershell
+uv run python -u .\compute_jaad_camera_motion.py        # BoT-SORT GMC for every saved JAAD video, once
 $env:CROWD_JAYWALKING_CONFIG = ".\strict.config"
 $env:CROWD_JAYWALKING_JAAD_SPLIT = "test"
 uv run python -u .\run_jaad_person_audit.py
 ```
 
-The audit runs the profile over the saved tracks of one JAAD split and matches every claimed person to a JAAD pedestrian. A claim is confirmed when that pedestrian has a JAAD crossing label and JAAD's per frame scene annotations mark no pedestrian crossing and no traffic light on its crossing frames. Bystanders without behaviour labels and unannotated detections cannot be verified and would be reported separately; none were claimed.
+The camera motion aware gate is trained with `train_crossing_gate.py` and a configuration that sets `crossing_gate_camera_motion` to `true` and writes to `results/jaad_crossing_gate_v2`.
+
+The audit runs the profile over the saved tracks of one JAAD split and matches every claimed person to a JAAD pedestrian. A claim is confirmed when that pedestrian has a JAAD crossing label and JAAD's per frame scene annotations mark no pedestrian crossing and no traffic light on its crossing frames.
 
 | JAAD split | Claims | Confirmed | 95% lower bound on precision | Eligible crossers | Recall |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Test (117 videos, held out) | 9 | 9 | 71.7% | 39 | 23.1% |
-| Train and val (192 videos) | 17 | 17 | 83.8% | 72 | 23.6% |
-| All | 26 | 26 | 89.1% | 111 | 23.4% |
+| Test (117 videos, held out) | 15 | 14 | 72.1% | 39 | 35.9% |
+| Train (165 videos) | 14 | 14 | 80.7% | 65 | 21.5% |
+| Val (27 videos) | 3 | 3 | 36.8% | 7 | 42.9% |
+| All | 32 | 31 | 86.0% | 111 | 27.9% |
 
-The lower bound is the one sided Clopper-Pearson bound. Held out means the gate was fitted, the prompt was chosen, and every segmentation threshold was fixed on JAAD train and val data only. The project's locked test videos were excluded from all tuning and are part of the JAAD test split. Train and val are tuning data, so their row shows consistency rather than an independent estimate.
+Held out means the gate was fitted, the prompt was chosen, and every threshold (gate tier, scene motion, and the Mask2Former segmentation veto the profile then used) was fixed on JAAD train and val data only. Train and val show consistency rather than an independent estimate, because the gate was fitted there. These figures were measured with a Mask2Former segmentation veto that has since been removed: on JAAD it blocked far more correct claims than wrong ones, mistaking snow, slush, and glare for crosswalks and counting traffic lights anywhere in view.
 
-Two of the nine held out claims (`video_0093`, `video_0101`, one residential street) carry the JAAD pedestrian attribute "designated, signalised" although JAAD's per frame annotations and the images show neither a crossing nor a signal. Under the stricter attribute based definition, 7 of the 9 held out claims are confirmed.
+The single held out error (`video_0344`) is a child standing on a snow bank at the roadside while the car turns sharply. Close to the camera, parallax from the car's own turning and forward motion is not removed by a single image wide camera motion estimate, so a standing person keeps some apparent sideways motion. Masking detections and static parts of the camera car out of the estimate (`estimate_masked_camera_motion`) did not change this.
+
+### Crossing from tracking only, or with a VLM check
+
+An earlier strict design also asked the VLM whether each person crosses, and rescued first stage rejections that the VLM confirmed. It made 9 of 9 held out claims correct but kept only 23% of eligible crossers, and it mixed the question of crossing into the VLM. Removing the VLM crossing check without camera motion brought held out precision down to 78%, because people who only appear to cross while the car turns were accepted; the camera motion aware gate and the scene motion rule recovered this to 93%.
 
 ### Where eligible crossers are lost
 
-On train and val, before rescue, eligible crossers were lost at: the first stage 24%, the VLM crossing check 18%, the segmentation veto 18%, the gate tier 10%, and the VLM context check 10%. Each relaxation that was tried recovered crossers only by admitting errors that JAAD can verify: looser crossing check wording, a 90% gate tier, alternative segmentation thresholds, a first stage retrained with bystanders and ground surface features, and a 27B VLM for the crossing check (Qwen3.5-27B in 4-bit, which kept fewer crossers than Qwen3-VL-8B). Rescue was the one change that raised recall without errors.
+Each relaxation that was tried recovered crossers only by admitting errors that JAAD can verify: looser crossing check wording, a 90% gate tier, a first stage retrained with bystanders and ground surface features, and a 27B VLM for the crossing check. Crossing signs and traffic lights that JAAD does not annotate, and crosswalks it misses, also remove some claims that are in fact correct.
 
 ### Front crossing audit
 

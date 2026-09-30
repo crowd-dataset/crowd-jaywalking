@@ -151,11 +151,18 @@ class JAADPersonAudit:
             capture.release()
             source = self.tracks_dir / f"{video_id}.csv"
             shutil.copy(source, self.output / "tracking" / source.name)
+            motion_path = self.tracks_dir.parent.parent / "camera_motion" / f"{video_id}.csv"
+            camera_motion = None
+            if motion_path.is_file():
+                from .camera_motion import load_camera_motion_csv
+
+                camera_motion = load_camera_motion_csv(motion_path)
             result = pipeline.process_observations(
                 self.dataset.clip_path(video_id),
                 self.output / "evidence",
                 fps,
                 load_observations_csv(source),
+                camera_motion=camera_motion,
             )
             details_path.write_text(
                 json.dumps({"video_id": video_id, "result": to_jsonable(result)}, indent=1),

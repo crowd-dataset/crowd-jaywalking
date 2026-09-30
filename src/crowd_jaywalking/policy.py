@@ -50,7 +50,6 @@ class JaywalkingPolicy:
     def decide_all(
         self,
         contexts: Sequence[ContextAssessment],
-        segmentation_found: Sequence[bool] | None = None,
     ) -> list[tuple[DecisionLabel, str]]:
         """Decide every valid crossing person in one video.
 
@@ -59,12 +58,8 @@ class JaywalkingPolicy:
         property of the scene that one sampled path can easily miss.
         """
 
-        found = list(segmentation_found) if segmentation_found is not None else [False] * len(contexts)
         if self.context_scope == "person":
-            return [
-                self.decide(context, segmentation_found=blocked)
-                for context, blocked in zip(contexts, found)
-            ]
+            return [self.decide(context) for context in contexts]
 
         scene = [
             name
@@ -77,9 +72,8 @@ class JaywalkingPolicy:
                 context,
                 scene_permissions=scene,
                 scene_absence_confirmed=absent,
-                segmentation_found=blocked,
             )
-            for context, blocked in zip(contexts, found)
+            for context in contexts
         ]
 
     def decide(
@@ -87,7 +81,6 @@ class JaywalkingPolicy:
         context: ContextAssessment,
         scene_permissions: Sequence[str] = (),
         scene_absence_confirmed: bool | None = None,
-        segmentation_found: bool = False,
     ) -> tuple[DecisionLabel, str]:
         """Return the final label and a concise deterministic reason."""
 
@@ -128,14 +121,6 @@ class JaywalkingPolicy:
                     DecisionLabel.UNCERTAIN,
                     "Crossing infrastructure is not conclusively absent from the scene",
                 )
-
-        # An independent segmentation check that finds a crosswalk or traffic light
-        # vetoes a positive claim, whatever the VLM reported.
-        if segmentation_found:
-            return (
-                DecisionLabel.UNCERTAIN,
-                "Segmentation found a crosswalk or traffic light near the crossing",
-            )
 
         return (
             DecisionLabel.JAYWALKING,

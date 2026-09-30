@@ -49,17 +49,6 @@ OPTIONAL_CLASSIFIER_DEFAULTS = {
     "crossing_classifier_min_track_frames": 5,
 }
 
-# An absent infrastructure_segmentation_model disables the segmentation check.
-OPTIONAL_SEGMENTATION_DEFAULTS = {
-    "infrastructure_segmentation_model": None,
-    "segmentation_shortest_edge": 1080,
-    "segmentation_longest_edge": 1920,
-    # Chosen on the tuning half of the JAAD context benchmark only.
-    "segmentation_max_crosswalk_near_path_px": 50,
-    "segmentation_max_crosswalk_road_px": 1000,
-    "segmentation_max_traffic_light_px": 100,
-}
-
 # An absent crossing_gate_model disables the gate, which keeps legacy
 # configurations and their fingerprints unchanged.
 OPTIONAL_GATE_DEFAULTS = {
@@ -72,8 +61,15 @@ OPTIONAL_GATE_DEFAULTS = {
     "crossing_gate_learning_rate": 0.05,
     "crossing_gate_max_leaf_nodes": 15,
     "crossing_gate_random_seed": 42,
+    # Train the gate with camera compensated motion from BoT-SORT's own GMC.
+    "crossing_gate_camera_motion": False,
+    # Minimum camera compensated sideways motion of an accepted crossing, as a
+    # fraction of image width. Absent or null disables the rule.
+    "crossing_min_scene_x_range": None,
     # Absent keys keep the legacy behaviour: no VLM crossing check and no rescue.
     "crossing_vlm_check": False,
+    # v1 counts any carriageway; v3 only the camera car's road, in front of the car.
+    "crossing_vlm_check_version": "v1",
     "crossing_rescue_min_first_stage": None,
     "crossing_rescue_min_gate": None,
 }
@@ -109,6 +105,10 @@ OPTIONAL_EVIDENCE_DEFAULTS = {
     "evidence_road_crop_margin": 0.12,
     "evidence_control_crop_bottom": 0.78,
     "evidence_control_crop_overlap": 0.20,
+    # Frames for the VLM infrastructure check: "transition"
+    # centres them on the crossing, "track" spreads them over the whole track,
+    # so the approach to the junction is seen too.
+    "evidence_infrastructure_span": "transition",
     "vlm_task_max_frames": 4,
     "vlm_prompt_mode": "baseline_v3",
 }
@@ -361,6 +361,12 @@ class ProjectConfig:
                 "evidence_control_crop_overlap",
                 OPTIONAL_EVIDENCE_DEFAULTS["evidence_control_crop_overlap"],
             ),
+            "infrastructure_span": str(
+                self.raw.get(
+                    "evidence_infrastructure_span",
+                    OPTIONAL_EVIDENCE_DEFAULTS["evidence_infrastructure_span"],
+                )
+            ).strip().lower(),
         }
 
     def vlm_settings(
@@ -462,21 +468,6 @@ class ProjectConfig:
             ),
         }
 
-    def segmentation_settings(self) -> dict[str, Any]:
-        """Return settings for the optional infrastructure segmentation check."""
-
-        value = lambda name: self.raw.get(name, OPTIONAL_SEGMENTATION_DEFAULTS[name])
-        model = value("infrastructure_segmentation_model")
-        return {
-            "enabled": model is not None,
-            "model": model,
-            "shortest_edge": int(value("segmentation_shortest_edge")),
-            "longest_edge": int(value("segmentation_longest_edge")),
-            "max_crosswalk_near_path_px": int(value("segmentation_max_crosswalk_near_path_px")),
-            "max_crosswalk_road_px": int(value("segmentation_max_crosswalk_road_px")),
-            "max_traffic_light_px": int(value("segmentation_max_traffic_light_px")),
-        }
-
     def crossing_gate_settings(self) -> dict[str, Any]:
         """Return settings for the optional high precision crossing gate."""
 
@@ -503,7 +494,10 @@ class ProjectConfig:
             "learning_rate": float(value("crossing_gate_learning_rate")),
             "max_leaf_nodes": int(value("crossing_gate_max_leaf_nodes")),
             "random_seed": int(value("crossing_gate_random_seed")),
+            "camera_motion": bool(value("crossing_gate_camera_motion")),
+            "min_scene_x_range": value("crossing_min_scene_x_range"),
             "vlm_check": bool(value("crossing_vlm_check")),
+            "vlm_check_version": str(value("crossing_vlm_check_version")).strip().lower(),
             "rescue_min_first_stage": value("crossing_rescue_min_first_stage"),
             "rescue_min_gate": value("crossing_rescue_min_gate"),
         }
@@ -740,6 +734,7 @@ class ProjectConfig:
             "zebra_light_v2",
             "zebra_light_v3",
             "zebra_light_v4",
+            "zebra_light_v5",
         }
         prompt_mode = str(
             self.raw.get(
@@ -784,6 +779,10 @@ class ProjectConfig:
             )
         if rescue[0] is not None and not gate["vlm_check"]:
             raise ValueError("Rescued crossings require crossing_vlm_check to confirm them")
+        if self.evidence_settings()["infrastructure_span"] not in {"transition", "track"}:
+            raise ValueError("evidence_infrastructure_span must be one of: transition, track")
+        if gate["vlm_check_version"] not in {"v1", "v2", "v3"}:
+            raise ValueError("crossing_vlm_check_version must be one of: v1, v2, v3")
         if gate["min_precision"] not in gate["precision_tiers"]:
             raise ValueError(
                 "crossing_gate_min_precision must be one of crossing_gate_precision_tiers"
@@ -809,8 +808,8 @@ class ProjectConfig:
             raise ValueError("jaad_context_sample_size must be zero or positive")
 
         classifier = self.crossing_classifier_settings()
-        if classifier["decision_mode"] not in {"classifier", "rules"}:
-            raise ValueError("crossing_decision_mode must be one of: classifier, rules")
+        if classifier["decision_mode"] not in {"classifier", "rules", "crowd_city"}:
+            raise ValueError("crossing_decision_mode must be one of: classifier, rules, crowd_city")
         fallback = self.raw.get(
             "crossing_classifier_fallback_to_rules",
             OPTIONAL_CLASSIFIER_DEFAULTS["crossing_classifier_fallback_to_rules"],

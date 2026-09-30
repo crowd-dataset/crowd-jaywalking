@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from typing import Any
 
 from .config import ProjectConfig
 from .crossing import CrossingDetector
 from .crossing_classifier import CrossingClassifier
 from .crossing_gate import CrossingGate
-from .segmentation import InfrastructureSegmenter
 from .evidence import EvidenceBuilder
 from .model_crossing import ModelCrossingDetector
 from .models import (
@@ -38,12 +38,19 @@ class JaywalkingPipeline:
         self._vlm_settings = config.vlm_settings()
         self._context_ready = False
         self._vlm_check = False
+        self._vlm_check_version = config.crossing_gate_settings()["vlm_check_version"]
         self._rescue: tuple[float, float] | None = None
 
         self.tracker = PersonTracker(config.tracking_settings(), config.root)
         classifier_settings = config.crossing_classifier_settings()
         self.crossing_method = classifier_settings["decision_mode"]
-        if self.crossing_method == "classifier":
+        if self.crossing_method == "crowd_city":
+            from .crowd_city_crossing import CrowdCityCrossingDetector
+
+            # crowd-city's detector only proposes snippets; the VLM decides whether they cross.
+            self._vlm_check = config.crossing_gate_settings()["vlm_check"]
+            self.crossing_detector = CrowdCityCrossingDetector()
+        elif self.crossing_method == "classifier":
             try:
                 classifier = CrossingClassifier.load(classifier_settings["model"])
             except (FileNotFoundError, ValueError):
@@ -70,12 +77,12 @@ class JaywalkingPipeline:
                     CrossingGate.load(gate_settings["model"], gate_settings["min_precision"])
                     if gate_settings["enabled"]
                     else None,
+                    gate_settings["min_scene_x_range"],
                 )
         else:
             self.crossing_detector = CrossingDetector(config.crossing_settings())
         self.evidence_builder = EvidenceBuilder(config.evidence_settings())
-        segmentation = config.segmentation_settings()
-        self.segmenter = InfrastructureSegmenter(segmentation) if segmentation["enabled"] else None
+        self._infrastructure_span = config.evidence_settings()["infrastructure_span"]
         self.policy = JaywalkingPolicy(config.policy_settings())
 
     def process_video(self, video_path: str | Path, evidence_root: str | Path) -> VideoResult:
@@ -100,12 +107,21 @@ class JaywalkingPipeline:
         observations: list[TrackObservation],
         *,
         started: float | None = None,
+        camera_motion: Any | None = None,
     ) -> VideoResult:
         """Classify precomputed observations from the configured tracker."""
 
         started = time.perf_counter() if started is None else started
         source = Path(video_path).resolve()
-        crossings = self.crossing_detector.detect(observations, fps)
+        if getattr(self.crossing_detector, "needs_camera_motion", False):
+            if camera_motion is None:
+                from .camera_motion import estimate_camera_motion
+
+                # BoT-SORT's own GMC estimate, recomputed from the frames.
+                camera_motion = estimate_camera_motion(source)
+            crossings = self.crossing_detector.detect(observations, fps, camera_motion)
+        else:
+            crossings = self.crossing_detector.detect(observations, fps)
 
         candidates = [(event, "gate") for event in crossings.valid_events]
         if self._rescue is not None:
@@ -137,22 +153,25 @@ class JaywalkingPipeline:
             if self.context_classifier is None:
                 raise RuntimeError("The configured Hugging Face context model is unavailable")
             if self._vlm_check:
-                answer, summary = self.context_classifier.confirm_crossing(evidence)
+                answer, summary = self.context_classifier.confirm_crossing(
+                    evidence, version=getattr(self, "_vlm_check_version", "v1")
+                )
                 checks.append(CrossingCheck(event.person_id, source_name, answer, summary))
                 # Only a clear YES counts: the positive output must be precise.
                 if answer != Ternary.YES:
                     continue
+            if getattr(self, "_infrastructure_span", "transition") == "track":
+                evidence = self.evidence_builder.build(
+                    video_path=source,
+                    event=event,
+                    observations=observations,
+                    output_root=evidence_root,
+                    fps=fps,
+                    span="track",
+                )
             assessed.append((event, self.context_classifier.classify(evidence)))
-            measurements.append(
-                self.segmenter.measure(source, event, observations, evidence)
-                if self.segmenter is not None
-                else None
-            )
 
-        outcomes = self.policy.decide_all(
-            [context for _, context in assessed],
-            [bool(item and item.infrastructure_found) for item in measurements],
-        )
+        outcomes = self.policy.decide_all([context for _, context in assessed])
         decisions = [
             PersonDecision(
                 person_id=event.person_id,
@@ -160,11 +179,8 @@ class JaywalkingPipeline:
                 reason=reason,
                 event=event,
                 context=context,
-                segmentation=measurement,
             )
-            for (event, context), (label, reason), measurement in zip(
-                assessed, outcomes, measurements
-            )
+            for (event, context), (label, reason) in zip(assessed, outcomes)
         ]
 
         if any(item.label == DecisionLabel.JAYWALKING for item in decisions):

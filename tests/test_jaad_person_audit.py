@@ -2,14 +2,14 @@
 
 import unittest
 
-from crowd_jaywalking.jaad import JAADPedestrianTrack, JAADVideoAnnotations
-from crowd_jaywalking.jaad_person_audit import (
+from scripts.jaad.jaad import JAADPedestrianTrack, JAADVideoAnnotations
+from scripts.jaad.jaad_person_audit import (
     CONFIRMED,
     claim_verdict,
     clopper_pearson_lower,
     eligible_crossers,
 )
-from crowd_jaywalking.models import BoundingBox
+from scripts.core.models import BoundingBox
 
 BOX = BoundingBox(0.40, 0.40, 0.50, 0.80)
 FRAMES = tuple(range(10))

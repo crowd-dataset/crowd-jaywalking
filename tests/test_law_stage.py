@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from crowd_jaywalking.jaywalking_law import JaywalkingLawJudge
-from crowd_jaywalking.law_stage import find_claims, run_law_stage
+from scripts.law.jaywalking_law import JaywalkingLawJudge
+from scripts.law.law_stage import find_claims, run_law_stage
 
 RULES = Path(__file__).resolve().parents[1] / "configs" / "jaywalking_rules.json"
 

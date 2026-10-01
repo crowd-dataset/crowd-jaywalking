@@ -6,10 +6,10 @@ import json
 import unittest
 from pathlib import Path
 
-from crowd_jaywalking.crowd_analysis import stratified_audit_sample
-from crowd_jaywalking.model_crossing import ModelCrossingDetector
-from crowd_jaywalking.models import BoundingBox, RejectionReason, TrackObservation
-from crowd_jaywalking.track_features import TrackFeatureExtractor
+from scripts.crowd.crowd_analysis import stratified_audit_sample
+from scripts.crossing.model_crossing import ModelCrossingDetector
+from scripts.core.models import BoundingBox, RejectionReason, TrackObservation
+from scripts.crossing.track_features import TrackFeatureExtractor
 
 
 class _FakeClassifier:
@@ -108,7 +108,7 @@ class ModelCrossingTests(unittest.TestCase):
     def test_scene_motion_rule_rejects_camera_pan_only(self) -> None:
         import numpy as np
 
-        from crowd_jaywalking.camera_motion import CameraMotion
+        from scripts.crossing.camera_motion import CameraMotion
 
         observations = self._track(1, [0.30, 0.40, 0.50, 0.60, 0.70])
         detector = ModelCrossingDetector(

@@ -3,7 +3,7 @@
 import unittest
 from pathlib import Path
 
-from crowd_jaywalking.jaywalking_law import (
+from scripts.law.jaywalking_law import (
     JaywalkingLawJudge,
     LawLabel,
     LawLocation,

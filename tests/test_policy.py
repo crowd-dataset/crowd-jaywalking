@@ -2,8 +2,8 @@
 
 import unittest
 
-from crowd_jaywalking.models import ContextAssessment, DecisionLabel, Ternary, Visibility
-from crowd_jaywalking.policy import JaywalkingPolicy
+from scripts.core.models import ContextAssessment, DecisionLabel, Ternary, Visibility
+from scripts.core.policy import JaywalkingPolicy
 
 
 def context(

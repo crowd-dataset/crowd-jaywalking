@@ -3,7 +3,7 @@
 import unittest
 from types import SimpleNamespace
 
-from crowd_jaywalking.models import (
+from scripts.core.models import (
     ContextAssessment,
     CrossingEvent,
     CrossingFeatures,
@@ -12,8 +12,8 @@ from crowd_jaywalking.models import (
     Ternary,
     Visibility,
 )
-from crowd_jaywalking.pipeline import JaywalkingPipeline
-from crowd_jaywalking.policy import JaywalkingPolicy
+from scripts.core.pipeline import JaywalkingPipeline
+from scripts.core.policy import JaywalkingPolicy
 
 
 def _event(person_id: int, valid: bool) -> CrossingEvent:

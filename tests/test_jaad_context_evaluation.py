@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from crowd_jaywalking.jaad_context_evaluation import (
+from scripts.context.jaad_context_evaluation import (
     JAADContextBenchmark,
     _macro_metrics,
     _normalise_ternary,

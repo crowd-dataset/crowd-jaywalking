@@ -8,8 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from crowd_jaywalking.config import ProjectConfig
-from crowd_jaywalking.crossing_classifier import (
+from config_helpers import load_config, template
+from scripts.crossing.crossing_classifier import (
     ALL_FEATURES,
     CATEGORICAL_FEATURES,
     JAADCrossingClassifierEvaluator,
@@ -105,7 +105,7 @@ class CrossingClassifierTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            raw = json.loads(Path("default.config").read_text(encoding="utf-8"))
+            raw = template()
             raw.update(
                 {
                     "jaad_benchmark_results": str(benchmark),
@@ -117,15 +117,12 @@ class CrossingClassifierTests(unittest.TestCase):
                     "crossing_classifier_gradient_max_leaf_nodes": [3],
                 }
             )
-            config_path = root / "config"
-            config_path.write_text(json.dumps(raw), encoding="utf-8")
-            summary = JAADCrossingClassifierTrainer(ProjectConfig.load(config_path)).run()
+            config = load_config(raw, root=root)
+            summary = JAADCrossingClassifierTrainer(config).run()
 
             classifier = CrossingClassifier.load(model_path)
             predictions = classifier.predict(validation_rows)
-            test_summary = JAADCrossingClassifierEvaluator(
-                ProjectConfig.load(config_path)
-            ).run()
+            test_summary = JAADCrossingClassifierEvaluator(config).run()
             self.assertEqual(predictions.tolist(), [True, False, True, False])
             self.assertEqual(summary["validation_rows"], 4)
             self.assertEqual(test_summary["end_to_end_crossing_metrics"]["tp"], 2)

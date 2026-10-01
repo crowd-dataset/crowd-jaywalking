@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from crowd_jaywalking.crowd_tracks import load_crowd_tracks, parse_track_filename
+from scripts.crowd.crowd_tracks import load_crowd_tracks, parse_track_filename
 
 CSV = """yolo-id,x-center,y-center,width,height,unique-id,confidence,frame-count
 0,0.5,0.5,0.1,0.4,7.0,0.9,3

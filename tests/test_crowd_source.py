@@ -3,6 +3,9 @@
 import json
 import tempfile
 import unittest
+from unittest import mock
+
+import common
 from pathlib import Path
 
 import numpy as np
@@ -12,10 +15,10 @@ try:
 except ImportError:
     cv2 = None
 
-from crowd_jaywalking.crowd_source import (
+from scripts.crowd.crowd_source import (
     AuthenticationError,
     CrowdVideoDownloader,
-    ProjectSecrets,
+    ftp_credentials,
     extract_video_segment,
     load_crowd_mapping,
 )
@@ -65,29 +68,20 @@ class _FakeSession:
 
 
 class CrowdSourceTests(unittest.TestCase):
-    def test_secret_file_takes_precedence(self) -> None:
+    def test_credentials_come_from_the_secret_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "default.secret").write_text(
-                json.dumps({"ftp_username": "default", "ftp_password": "default"}),
-                encoding="utf-8",
-            )
             (root / "secret").write_text(
-                json.dumps(
-                    {
-                        "ftp_username": "active",
-                        "ftp_password": "private",
-                        "ftp_token": "token",
-                    }
-                ),
+                json.dumps({"ftp_username": "active", "ftp_password": "private", "ftp_token": "token"}),
                 encoding="utf-8",
             )
-            secrets = ProjectSecrets.load(root)
+            with mock.patch.object(common, "root_dir", str(root)):
+                credentials = ftp_credentials()
+            (root / "secret").write_text(json.dumps({"ftp_username": "", "ftp_password": ""}), encoding="utf-8")
+            with mock.patch.object(common, "root_dir", str(root)), self.assertRaises(ValueError):
+                ftp_credentials()
 
-        self.assertEqual(secrets.source_path.name, "secret")
-        self.assertEqual(secrets.ftp_username, "active")
-        self.assertEqual(secrets.ftp_password, "private")
-        self.assertEqual(secrets.ftp_token, "token")
+        self.assertEqual((credentials.username, credentials.password, credentials.token), ("active", "private", "token"))
 
     def test_loads_nested_crowd_mapping(self) -> None:
         mapping = (

@@ -4,10 +4,10 @@ import unittest
 
 import numpy as np
 
-from crowd_jaywalking.camera_motion import CameraMotion, compensated_features
-from crowd_jaywalking.crossing_gate import gate_matrix
-from crowd_jaywalking.crossing_classifier import feature_matrix
-from crowd_jaywalking.models import BoundingBox, TrackObservation
+from scripts.crossing.camera_motion import CameraMotion, compensated_features
+from scripts.crossing.crossing_gate import gate_matrix
+from scripts.crossing.crossing_classifier import feature_matrix
+from scripts.core.models import BoundingBox, TrackObservation
 
 
 def track(xs):

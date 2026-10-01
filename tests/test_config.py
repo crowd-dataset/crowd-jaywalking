@@ -1,50 +1,31 @@
 """Tests for the CROWD style configuration file workflow."""
 
-import json
-import os
-import tempfile
 import unittest
-from pathlib import Path
 
-from crowd_jaywalking.config import ProjectConfig
+from config_helpers import load_config, project_root, template
+from scripts.core.config import ProjectConfig
 
 
 class ProjectConfigTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.template = Path("default.config").read_text(encoding="utf-8")
+        cls.template = template()
 
-    def test_uses_default_config_when_active_config_is_absent(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "default.config").write_text(self.template, encoding="utf-8")
-            previous = Path.cwd()
-            try:
-                os.chdir(root)
-                config = ProjectConfig.load()
-            finally:
-                os.chdir(previous)
+    def test_active_config_overrides_default_config(self) -> None:
+        active = dict(self.template, tracking_model="other.pt")
+        with project_root(self.template, active) as root:
+            config = ProjectConfig.load()
 
-        self.assertEqual(config.source_path.name, "default.config")
-        self.assertEqual(config.get("tracking_model"), "yolo26x.pt")
+        self.assertEqual(config.get("tracking_model"), "other.pt")
+        self.assertEqual(config.root, root.resolve())
         self.assertFalse(any(isinstance(value, dict) for value in config.raw.values()))
 
-    def test_active_config_takes_precedence(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "default.config").write_text(self.template, encoding="utf-8")
-            (root / "config").write_text(self.template, encoding="utf-8")
-            previous = Path.cwd()
-            try:
-                os.chdir(root)
-                config = ProjectConfig.load()
-            finally:
-                os.chdir(previous)
-
-        self.assertEqual(config.source_path.name, "config")
+    def test_every_default_entry_is_loaded(self) -> None:
+        config = load_config(self.template)
+        self.assertEqual(set(config.raw), set(self.template))
 
     def test_partial_crossing_settings_have_backwards_compatible_defaults(self) -> None:
-        raw = json.loads(self.template)
+        raw = dict(self.template)
         for name in (
             "partial_crossing_enabled",
             "partial_exit_min_x_range",
@@ -63,15 +44,7 @@ class ProjectConfigTests(unittest.TestCase):
             "camera_min_shared_track_ratio",
         ):
             raw.pop(name)
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "config").write_text(json.dumps(raw), encoding="utf-8")
-            previous = Path.cwd()
-            try:
-                os.chdir(root)
-                crossing = ProjectConfig.load().crossing_settings()
-            finally:
-                os.chdir(previous)
+        crossing = load_config(raw).crossing_settings()
 
         self.assertTrue(crossing["partial_crossing_enabled"])
         self.assertEqual(crossing["partial_exit_min_x_range"], 0.48)
@@ -81,7 +54,7 @@ class ProjectConfigTests(unittest.TestCase):
         self.assertEqual(crossing["camera_min_shared_track_ratio"], 0.0)
 
     def test_classifier_settings_have_backwards_compatible_defaults(self) -> None:
-        raw = json.loads(self.template)
+        raw = dict(self.template)
         for name in (
             "crossing_classifier_results",
             "crossing_classifier_model",
@@ -97,15 +70,7 @@ class ProjectConfigTests(unittest.TestCase):
             "crossing_classifier_min_track_frames",
         ):
             raw.pop(name)
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "config").write_text(json.dumps(raw), encoding="utf-8")
-            previous = Path.cwd()
-            try:
-                os.chdir(root)
-                settings = ProjectConfig.load().crossing_classifier_settings()
-            finally:
-                os.chdir(previous)
+        settings = load_config(raw).crossing_classifier_settings()
 
         self.assertEqual(settings["min_precision"], 0.90)
         self.assertEqual(settings["cv_folds"], 5)
@@ -116,7 +81,7 @@ class ProjectConfigTests(unittest.TestCase):
         self.assertEqual(settings["min_track_frames"], 5)
 
     def test_evidence_version_five_settings_have_backwards_compatible_defaults(self) -> None:
-        raw = json.loads(self.template)
+        raw = dict(self.template)
         for name in (
             "evidence_trajectory_enabled",
             "evidence_road_crop_margin",
@@ -126,17 +91,9 @@ class ProjectConfigTests(unittest.TestCase):
             "vlm_prompt_mode",
         ):
             raw.pop(name)
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "config").write_text(json.dumps(raw), encoding="utf-8")
-            previous = Path.cwd()
-            try:
-                os.chdir(root)
-                config = ProjectConfig.load()
-                evidence = config.evidence_settings()
-                vlm = config.vlm_settings()
-            finally:
-                os.chdir(previous)
+        config = load_config(raw)
+        evidence = config.evidence_settings()
+        vlm = config.vlm_settings()
 
         self.assertTrue(evidence["trajectory_enabled"])
         self.assertEqual(evidence["road_crop_margin"], 0.12)
@@ -146,7 +103,7 @@ class ProjectConfigTests(unittest.TestCase):
         self.assertEqual(vlm["prompt_mode"], "baseline_v3")
 
     def test_crowd_settings_have_backwards_compatible_defaults(self) -> None:
-        raw = json.loads(self.template)
+        raw = dict(self.template)
         for name in (
             "mapping",
             "ftp_server",
@@ -164,15 +121,7 @@ class ProjectConfigTests(unittest.TestCase):
             "crowd_audit_per_stratum",
         ):
             raw.pop(name)
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "config").write_text(json.dumps(raw), encoding="utf-8")
-            previous = Path.cwd()
-            try:
-                os.chdir(root)
-                settings = ProjectConfig.load().crowd_settings()
-            finally:
-                os.chdir(previous)
+        settings = load_config(raw).crowd_settings()
 
         self.assertTrue(settings["resume"])
         self.assertEqual(settings["mapping"].name, "mapping.csv")
@@ -183,19 +132,11 @@ class ProjectConfigTests(unittest.TestCase):
         self.assertEqual(settings["audit_per_stratum"], 50)
 
     def test_vlm_comparison_settings_have_backwards_compatible_defaults(self) -> None:
-        raw = json.loads(self.template)
+        raw = dict(self.template)
         raw.pop("vlm_comparison_models")
         raw.pop("vlm_comparison_prompt_modes")
         raw.pop("vlm_comparison_results")
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "config").write_text(json.dumps(raw), encoding="utf-8")
-            previous = Path.cwd()
-            try:
-                os.chdir(root)
-                settings = ProjectConfig.load().vlm_comparison_settings()
-            finally:
-                os.chdir(previous)
+        settings = load_config(raw).vlm_comparison_settings()
 
         self.assertEqual(
             settings["models"],
@@ -208,18 +149,10 @@ class ProjectConfigTests(unittest.TestCase):
         self.assertEqual(settings["results"].name, "jaad_vlm_comparison_v5")
 
     def test_context_sampling_settings_have_backwards_compatible_defaults(self) -> None:
-        raw = json.loads(self.template)
+        raw = dict(self.template)
         raw.pop("jaad_context_sample_size")
         raw.pop("jaad_context_sampling_seed")
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "config").write_text(json.dumps(raw), encoding="utf-8")
-            previous = Path.cwd()
-            try:
-                os.chdir(root)
-                settings = ProjectConfig.load().jaad_context_settings()
-            finally:
-                os.chdir(previous)
+        settings = load_config(raw).jaad_context_settings()
 
         self.assertEqual(settings["sample_size"], 120)
         self.assertEqual(settings["sampling_seed"], 42)

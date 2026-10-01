@@ -4,14 +4,14 @@ import unittest
 
 import numpy as np
 
-from crowd_jaywalking.crossing_gate import (
+from scripts.crossing.crossing_gate import (
     GATE_ARTIFACT_TYPE,
     CrossingGate,
     gate_metrics,
     select_precision_threshold,
     tier_for,
 )
-from crowd_jaywalking.crossing_classifier import FEATURE_VERSION
+from scripts.crossing.crossing_classifier import FEATURE_VERSION
 
 
 class CrossingGateThresholdTests(unittest.TestCase):

@@ -4,8 +4,8 @@ import unittest
 
 import numpy as np
 
-from crowd_jaywalking.evidence import make_evidence_views
-from crowd_jaywalking.models import BoundingBox
+from scripts.core.evidence import make_evidence_views
+from scripts.core.models import BoundingBox
 
 
 class EvidenceViewTests(unittest.TestCase):

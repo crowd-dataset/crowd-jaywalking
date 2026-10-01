@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 import unittest
 
-from crowd_jaywalking.models import EvidenceImage, Ternary, Visibility
-from crowd_jaywalking.vlm import (
+from scripts.core.models import EvidenceImage, Ternary, Visibility
+from scripts.core.vlm import (
     AUTHORISATION_PROMPT,
     BASELINE_CONTEXT_PROMPT,
     CONTEXT_PROMPT,

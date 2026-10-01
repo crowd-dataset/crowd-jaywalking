@@ -4,15 +4,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from crowd_jaywalking.jaad import JAADPedestrianTrack, JAADVideoAnnotations
-from crowd_jaywalking.jaad_benchmark import (
+from scripts.jaad.jaad import JAADPedestrianTrack, JAADVideoAnnotations
+from scripts.jaad.jaad_benchmark import (
     JAADCrossingBenchmark,
     _classification_metrics,
     box_iou,
     match_person_tracks,
 )
-from crowd_jaywalking.models import BoundingBox, TrackObservation
-from crowd_jaywalking.tracking import load_observations_csv, save_observations_csv
+from scripts.core.models import BoundingBox, TrackObservation
+from scripts.core.tracking import load_observations_csv, save_observations_csv
 
 
 def box(x1: float, y1: float, x2: float, y2: float) -> BoundingBox:

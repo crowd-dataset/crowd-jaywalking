@@ -2,13 +2,13 @@
 
 import unittest
 
-from crowd_jaywalking.crossing import CrossingDetector
-from crowd_jaywalking.config import ProjectConfig
-from crowd_jaywalking.models import BoundingBox, RejectionReason, TrackObservation
+from scripts.crossing.crossing import CrossingDetector
+from config_helpers import load_config
+from scripts.core.models import BoundingBox, RejectionReason, TrackObservation
 
 
 def settings() -> dict:
-    return ProjectConfig.load().crossing_settings()
+    return load_config().crossing_settings()
 
 
 def observation(

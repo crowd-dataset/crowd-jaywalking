@@ -20,6 +20,7 @@ dependencies = [
     "transformers>=5.10.1,<6.0",
     "ultralytics>=8.4.0",
     "bitsandbytes>=0.50.2",
+    "pycountry>=26.2.16",
 ]
 
 # CUDA 12.8 wheels, the minimum for RTX 50 series (Blackwell) GPUs, on Windows and Linux.
@@ -37,7 +38,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/crowd_jaywalking"]
+packages = ["scripts"]
+
+# The code lives in scripts/ by topic. The CROWD helpers (common.py, custom_logger.py,
+# logmod.py) stay at the repository root next to config and secret; the editable
+# install puts the root on the import path, so every script can import both.
+[tool.hatch.build]
+dev-mode-dirs = ["."]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

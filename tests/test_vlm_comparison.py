@@ -2,7 +2,7 @@
 
 import unittest
 
-from crowd_jaywalking.vlm_comparison import (
+from scripts.context.vlm_comparison import (
     candidate_slug,
     comparison_metrics,
     model_slug,

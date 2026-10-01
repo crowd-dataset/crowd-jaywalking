@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import unittest
 from pathlib import Path
 
-from crowd_jaywalking.jaad import JAADDataset
-from crowd_jaywalking.jaad_context import (
+from scripts.jaad.jaad import JAADDataset
+from scripts.context.jaad_context import (
     JAADContextAuditBuilder,
     context_sampling_stratum,
     select_context_candidates,

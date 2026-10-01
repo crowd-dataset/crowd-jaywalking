@@ -4,8 +4,8 @@ import unittest
 
 import numpy as np
 
-from crowd_jaywalking.crowd_city_crossing import CrowdCityCrossingDetector
-from crowd_jaywalking.models import BoundingBox, TrackObservation
+from scripts.crossing.crowd_city_crossing import CrowdCityCrossingDetector
+from scripts.core.models import BoundingBox, TrackObservation
 
 
 def person(track_id, xs, height=0.3, confidence=0.9):

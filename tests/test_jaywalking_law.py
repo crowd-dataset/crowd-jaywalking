@@ -80,7 +80,7 @@ class JudgeTests(unittest.TestCase):
         return ask
 
     def test_crossing_condition_comes_from_the_pipeline(self):
-        verdict = self.judge.judge(LawLocation("Canada", "ON", "Toronto"), self._vlm({"CAN-R1": "YES", "CAN-R3": "YES"}))
+        verdict = self.judge.judge(LawLocation("Canada", "ON", "Toronto"), self._vlm({"CAN-R1": "YES", "CAN-R3": "YES", "CAN-X1": "NO"}))
         self.assertEqual(verdict.label, LawLabel.JAYWALKING)
         self.assertEqual(verdict.verdict_sources["CAN-R2"], "pipeline")
         self.assertNotIn("CAN-R2:", self.asked[0])
@@ -97,15 +97,53 @@ class JudgeTests(unittest.TestCase):
         self.assertIsNone(self.judge.judge(None, self._vlm({})))
 
     def test_us_jurisdiction_comes_from_the_location(self):
-        answers = {"USA-R1": "YES", "USA-R5": "YES"}
+        answers = {"USA-R1": "YES", "USA-R5": "YES", "USA-X1": "NO"}
         self.assertEqual(self.judge.judge(LawLocation("USA", "TX", "Austin"), self._vlm(answers)).label, LawLabel.JAYWALKING)
         self.assertEqual(self.judge.judge(LawLocation("USA", "NY", "New York"), self._vlm(answers)).label, LawLabel.NOT_JAYWALKING)
         self.assertEqual(self.judge.judge(LawLocation("USA", "OR", "Portland"), self._vlm(answers)).label, LawLabel.INSUFFICIENT_EVIDENCE)
         california = self.judge.judge(LawLocation("USA", "CA", "Los Angeles"), self._vlm({**answers, "USA-R4": "NO"}))
         self.assertEqual(california.label, LawLabel.NOT_JAYWALKING)
 
+    def test_intersection_check_comes_from_the_rule_file(self):
+        rule = self.judge.book.rules["USA"]
+        self.assertEqual(rule.supplementary_ids, ["USA-X1"])
+        texas = LawLocation("USA", "TX", "San Antonio")
+        base = {"USA-R1": "YES", "USA-R5": "YES"}
+        # At an intersection: an unmarked crosswalk is a designated crossing.
+        verdict = self.judge.judge(texas, self._vlm({**base, "USA-X1": "YES"}))
+        self.assertEqual((verdict.label, verdict.verdicts["USA-R5"]), (LawLabel.NOT_JAYWALKING, "NO"))
+        self.assertEqual(verdict.verdict_sources["USA-R5"], "USA-X1")
+        self.assertEqual(verdict.verdicts["USA-X1"], "YES")
+        self.assertIn("USA-X1: The pedestrian crosses at a road intersection", self.asked[-1])
+        self.assertIn('"USA-X1": "YES|NO|UNKNOWN"', self.asked[-1])
+        # Cannot tell: no JAYWALKING label.
+        verdict = self.judge.judge(texas, self._vlm({**base, "USA-X1": "UNKNOWN"}))
+        self.assertEqual((verdict.label, verdict.verdicts["USA-R5"]), (LawLabel.INSUFFICIENT_EVIDENCE, "UNKNOWN"))
+        # Clearly mid-block: the rule set decides as before.
+        self.assertEqual(self.judge.judge(texas, self._vlm({**base, "USA-X1": "NO"})).label, LawLabel.JAYWALKING)
+        # A NO from the rule set is never overridden.
+        verdict = self.judge.judge(texas, self._vlm({"USA-R1": "YES", "USA-R5": "NO", "USA-X1": "UNKNOWN"}))
+        self.assertEqual((verdict.label, verdict.verdict_sources["USA-R5"]), (LawLabel.NOT_JAYWALKING, "vlm"))
+
+    def test_countries_without_supplementary_conditions_are_unchanged(self):
+        self.judge.judge(LawLocation("AUS"), self._vlm({"AUS-R1": "YES", "AUS-R3": "YES", "AUS-R4": "YES"}))
+        self.assertNotIn("Also evaluate", self.asked[-1])
+        self.assertNotIn("-X1", self.asked[-1])
+
+    def test_supplementary_conditions_are_validated(self):
+        import json
+        import tempfile
+
+        payload = json.loads(RULES.read_text(encoding="utf-8"))
+        payload["countries"]["USA"]["supplementary"][0]["overrides"] = {"YES": {"USA-R9": "NO"}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "rules.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                RuleBook(path)
+
     def test_unallowed_na_counts_as_unknown(self):
-        verdict = self.judge.judge(LawLocation("CAN"), self._vlm({"CAN-R1": "YES", "CAN-R3": "N/A"}))
+        verdict = self.judge.judge(LawLocation("CAN"), self._vlm({"CAN-R1": "YES", "CAN-R3": "N/A", "CAN-X1": "NO"}))
         self.assertEqual(verdict.verdicts["CAN-R3"], "UNKNOWN")
         self.assertEqual(verdict.label, LawLabel.INSUFFICIENT_EVIDENCE)
 

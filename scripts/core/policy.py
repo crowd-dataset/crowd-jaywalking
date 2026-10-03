@@ -46,35 +46,58 @@ class JaywalkingPolicy:
         # A positive then requires every infrastructure field, including cues that do
         # not grant permission, to be NO. Any YES or UNCERTAIN gives UNCERTAIN instead.
         self.strict_absence = bool(settings.get("strict_absence", False))
+        # Scene scope only joins crossings this close in time (seconds between their
+        # crossing intervals). None joins every crossing in the video.
+        window = settings.get("context_scope_window_seconds")
+        self.scope_window = None if window is None else float(window)
+        if self.scope_window is not None and self.scope_window < 0:
+            raise ValueError("context_scope_window_seconds must be null or non-negative")
 
     def decide_all(
         self,
         contexts: Sequence[ContextAssessment],
+        times: Sequence[tuple[float, float]] | None = None,
     ) -> list[tuple[DecisionLabel, str]]:
         """Decide every valid crossing person in one video.
 
         In scene scope, a permission cue seen for any crossing person in the video
         counts for every crossing person, because a marked crosswalk or signal is a
-        property of the scene that one sampled path can easily miss.
+        property of the scene that one sampled path can easily miss. With a scope
+        window, ``times`` gives each person's crossing interval in seconds and only
+        crossings at most the window apart share their cues: a long CROWD segment
+        passes many places, a JAAD clip only one.
         """
 
         if self.context_scope == "person":
             return [self.decide(context) for context in contexts]
 
-        scene = [
-            name
-            for name in self.permission_cues
-            if any(getattr(context, name) == Ternary.YES for context in contexts)
-        ]
-        absent = all(self._infrastructure_absent(context) for context in contexts)
-        return [
-            self.decide(
-                context,
-                scene_permissions=scene,
-                scene_absence_confirmed=absent,
+        if self.scope_window is None:
+            groups = [list(range(len(contexts)))] * len(contexts)
+        else:
+            if times is None or len(times) != len(contexts):
+                raise ValueError("A context scope window needs one crossing interval per person")
+            groups = [
+                [
+                    other
+                    for other, (start, end) in enumerate(times)
+                    if max(start, times[index][0]) - min(end, times[index][1]) <= self.scope_window
+                ]
+                for index in range(len(contexts))
+            ]
+
+        decisions = []
+        for context, group in zip(contexts, groups):
+            nearby = [contexts[other] for other in group]
+            scene = [
+                name
+                for name in self.permission_cues
+                if any(getattr(item, name) == Ternary.YES for item in nearby)
+            ]
+            absent = all(self._infrastructure_absent(item) for item in nearby)
+            decisions.append(
+                self.decide(context, scene_permissions=scene, scene_absence_confirmed=absent)
             )
-            for context in contexts
-        ]
+        return decisions
 
     def decide(
         self,

@@ -127,6 +127,29 @@ class JaywalkingPolicyTests(unittest.TestCase):
         labels = [label for label, _ in policy.decide_all([context(), context()])]
         self.assertEqual(labels, [DecisionLabel.JAYWALKING, DecisionLabel.JAYWALKING])
 
+    def test_scope_window_only_joins_crossings_close_in_time(self) -> None:
+        settings = {"context_scope": "scene", "strict_absence": True, "context_scope_window_seconds": 10}
+        policy = JaywalkingPolicy(settings)
+        contexts = [context(crosswalk=Ternary.YES), context(), context(), context(sign=Ternary.UNCERTAIN)]
+        # Intervals in seconds: 6 s, 20 s, and 3 s apart in turn.
+        times = [(100.0, 102.0), (108.0, 109.0), (129.0, 130.0), (133.0, 134.0)]
+        labels = [label for label, _ in policy.decide_all(contexts, times)]
+        self.assertEqual(
+            labels,
+            [DecisionLabel.COMPLIANT, DecisionLabel.COMPLIANT, DecisionLabel.UNCERTAIN, DecisionLabel.UNCERTAIN],
+        )
+        alone = [label for label, _ in policy.decide_all(contexts[:3], times[:3])]
+        self.assertEqual(alone[2], DecisionLabel.JAYWALKING)
+        # Without a window every crossing of the video is one scene, as before.
+        whole = JaywalkingPolicy({**settings, "context_scope_window_seconds": None})
+        self.assertEqual(
+            [label for label, _ in whole.decide_all(contexts[:3], times[:3])], [DecisionLabel.COMPLIANT] * 3
+        )
+        with self.assertRaises(ValueError):
+            policy.decide_all(contexts)
+        with self.assertRaises(ValueError):
+            JaywalkingPolicy({**settings, "context_scope_window_seconds": -1})
+
 
 if __name__ == "__main__":
     unittest.main()

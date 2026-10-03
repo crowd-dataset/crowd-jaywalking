@@ -182,6 +182,103 @@ class CrowdSourceTests(unittest.TestCase):
         self.assertEqual(result.source, "ftp_crawl")
         self.assertIn(nested, session.requests)
 
+    @staticmethod
+    def _track_downloader(session: "_FakeSession") -> CrowdVideoDownloader:
+        return CrowdVideoDownloader(
+            base_url="https://files.example/",
+            username="user",
+            password="password",
+            token=None,
+            aliases=["tue4"],
+            timeout_seconds=20,
+            max_pages=10,
+            session_factory=lambda: session,
+        )
+
+    def test_track_file_download_tries_the_frame_rate_names_in_the_bbox_folder(self) -> None:
+        folder = "https://files.example/v/alam/files/pedestrians_in-youtube/data/bbox"
+        session = _FakeSession({f"{folder}/abc_12_30.csv": (200, b"tracks")})
+        downloader = self._track_downloader(session)
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = downloader.download_track_file(
+                "abc", 12, 29.97, "/pedestrians_in-youtube/data/bbox/", ["tue4", "alam"], Path(directory)
+            )
+            content = path.read_bytes()
+
+        self.assertEqual((path.name, content), ("abc_12_30.csv", b"tracks"))
+        # int(29.97) is tried before round(29.97), on every alias in turn.
+        self.assertEqual(
+            session.requests[:3],
+            [
+                "https://files.example/v/tue4/files/pedestrians_in-youtube/data/bbox/abc_12_29.csv",
+                "https://files.example/v/tue4/files/pedestrians_in-youtube/data/bbox/abc_12_30.csv",
+                f"{folder}/abc_12_29.csv",
+            ],
+        )
+
+    def test_track_file_download_lists_the_bbox_folder_once(self) -> None:
+        browse = "https://files.example/v/tue4/browse/data/bbox"
+        listing = (
+            b"<a href='/v/tue4/browse/data'>..</a>"
+            b'<a href="/v/tue4/files/data/bbox/abc_12_25.csv">a</a>'
+            b'<a href="/v/tue4/files/data/bbox/abc_120_25.csv">b</a>'
+            b'<a href="/v/tue4/files/data/bbox/xabc_12_25.csv">c</a>'
+        )
+        session = _FakeSession(
+            {
+                browse: (200, listing),
+                "https://files.example/v/tue4/files/data/bbox/abc_12_25.csv": (200, b"tracks"),
+            }
+        )
+        downloader = self._track_downloader(session)
+
+        with tempfile.TemporaryDirectory() as directory:
+            found = downloader.download_track_file("abc", 12, 30.0, "data/bbox", ["tue4"], Path(directory))
+            missing = downloader.download_track_file("abc", 13, 30.0, "data/bbox", ["tue4"], Path(directory))
+            self.assertEqual(found.read_bytes(), b"tracks")
+
+        self.assertEqual(found.name, "abc_12_25.csv")
+        self.assertIsNone(missing)
+        self.assertEqual(session.requests.count(browse), 1)
+        # The link back to the parent folder is never followed.
+        self.assertNotIn("https://files.example/v/tue4/browse/data", session.requests)
+
+    def test_transient_failures_are_retried_but_missing_files_are_not(self) -> None:
+        url = "https://files.example/v/tue4/files/example.mp4"
+        session = _FakeSession({url: (200, b"video-bytes")})
+        original_get = session.get
+        failures = iter([True, False])
+
+        def flaky_get(request_url: str, **kwargs):
+            if request_url == url and next(failures, False):
+                session.requests.append(request_url)
+                raise ConnectionError("reset by peer")
+            return original_get(request_url, **kwargs)
+
+        session.get = flaky_get
+        downloader = self._track_downloader(session)
+        with tempfile.TemporaryDirectory() as directory, mock.patch(
+            "scripts.crowd.crowd_source.RETRY_DELAY_SECONDS", 0
+        ):
+            result = downloader.download("example", Path(directory))
+            self.assertEqual(result.path.read_bytes(), b"video-bytes")
+            self.assertEqual(session.requests.count(url), 2)
+
+            before = len(session.requests)
+            self.assertIsNone(downloader.download_track_file("abc", 1, 30.0, "bbox", ["tue4"], Path(directory)))
+            # A 404 on the one name and an empty listing: one pass, no retries.
+            self.assertEqual(len(session.requests) - before, 2)
+
+    def test_track_file_download_rejects_unsafe_folders(self) -> None:
+        downloader = self._track_downloader(_FakeSession({}))
+        with tempfile.TemporaryDirectory() as directory:
+            for folder in ("", "data/../secret"):
+                with self.assertRaises(ValueError):
+                    downloader.download_track_file("abc", 1, 30.0, folder, ["tue4"], Path(directory))
+            with self.assertRaises(ValueError):
+                downloader.download_track_file("a/b", 1, 30.0, "bbox", ["tue4"], Path(directory))
+
     @unittest.skipUnless(cv2 is not None, "OpenCV is not installed in this test environment")
     def test_extracts_mapped_segment_and_applies_end_margin(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

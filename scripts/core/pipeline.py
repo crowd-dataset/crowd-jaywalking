@@ -41,7 +41,7 @@ class JaywalkingPipeline:
         self._vlm_check_version = config.crossing_gate_settings()["vlm_check_version"]
         self._rescue: tuple[float, float] | None = None
 
-        self.tracker = PersonTracker(config.tracking_settings(), config.root)
+        self._tracker: PersonTracker | None = None
         classifier_settings = config.crossing_classifier_settings()
         self.crossing_method = classifier_settings["decision_mode"]
         if self.crossing_method == "crowd_city":
@@ -85,6 +85,13 @@ class JaywalkingPipeline:
         self._infrastructure_span = config.evidence_settings()["infrastructure_span"]
         self.policy = JaywalkingPolicy(config.policy_settings())
 
+    @property
+    def tracker(self) -> PersonTracker:
+        """YOLO and BoT-SORT, loaded on first use: precomputed tracks never need them."""
+
+        if self._tracker is None:
+            self._tracker = PersonTracker(self.config.tracking_settings(), self.config.root)
+        return self._tracker
 
     def process_video(self, video_path: str | Path, evidence_root: str | Path) -> VideoResult:
         """Process one video and return video and person level decisions."""
@@ -172,7 +179,13 @@ class JaywalkingPipeline:
                 )
             assessed.append((event, self.context_classifier.classify(evidence)))
 
-        outcomes = self.policy.decide_all([context for _, context in assessed])
+        outcomes = self.policy.decide_all(
+            [context for _, context in assessed],
+            [
+                (event.transition_start_frame / fps, event.transition_end_frame / fps)
+                for event, _ in assessed
+            ],
+        )
 
         decisions = [
             PersonDecision(

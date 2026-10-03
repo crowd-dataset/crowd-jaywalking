@@ -7,6 +7,7 @@ import csv
 import math
 import os
 import re
+import time
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
@@ -15,6 +16,12 @@ from urllib.parse import quote, urljoin, urlparse
 from custom_logger import CustomLogger
 
 logger = CustomLogger(__name__)  # use custom logger
+
+# A browse page of a large folder (the CROWD bbox folder lists about 86,000 files,
+# 13 MB of HTML) takes tens of seconds to arrive.
+LISTING_READ_TIMEOUT_SECONDS = 300
+DOWNLOAD_ATTEMPTS = 3
+RETRY_DELAY_SECONDS = 10
 
 ACTIVE_SECRET_NAME = "secret"
 DEFAULT_SECRET_NAME = "default.secret"
@@ -30,6 +37,10 @@ class MappingFormatError(CrowdSourceError):
 
 class DownloadError(CrowdSourceError):
     """Raised when a CROWD source video cannot be downloaded."""
+
+
+class TransientDownloadError(DownloadError):
+    """A request that failed or broke off; trying again may succeed."""
 
 
 class AuthenticationError(DownloadError):
@@ -312,8 +323,12 @@ class CrowdVideoDownloader:
 
             session_factory = requests.Session
         self.session_factory = session_factory
+        self._listings: dict[tuple[str, ...], list[str]] = {}
 
     def download(self, video_id: str, output_directory: Path) -> PreparedVideo:
+        return self._retrying(lambda: self._download_once(video_id, output_directory))
+
+    def _download_once(self, video_id: str, output_directory: Path) -> PreparedVideo:
         filename = video_id if video_id.lower().endswith(".mp4") else f"{video_id}.mp4"
         if (
             filename != Path(filename).name
@@ -347,7 +362,18 @@ class CrowdVideoDownloader:
                     response.close()
                 return PreparedVideo(destination.resolve(), "ftp_direct", True)
 
-            found = self._find_by_crawl(session, filename)
+            target = filename.lower()
+            found = next(
+                iter(
+                    self._crawl_files(
+                        session,
+                        [urljoin(self.base_url, f"v/{quote(alias, safe='_-')}/browse") for alias in self.aliases],
+                        lambda name: name.lower() == target,
+                        first_only=True,
+                    )
+                ),
+                None,
+            )
             if found is not None:
                 response = self._get(session, found, stream=True, allow_not_found=False)
                 if response is None:
@@ -368,17 +394,22 @@ class CrowdVideoDownloader:
         url: str,
         stream: bool,
         allow_not_found: bool,
+        read_timeout: int | None = None,
     ) -> Any | None:
         self._require_same_origin(url)
         try:
             response = session.get(
                 url,
-                timeout=self.timeout_seconds,
+                timeout=(
+                    self.timeout_seconds
+                    if read_timeout is None
+                    else (self.timeout_seconds, max(self.timeout_seconds, read_timeout))
+                ),
                 params={"token": self.token} if self.token else None,
                 stream=stream,
             )
         except Exception as error:
-            raise DownloadError("CROWD file server request failed") from error
+            raise TransientDownloadError("CROWD file server request failed") from error
 
         if response.status_code in {401, 403}:
             response.close()
@@ -401,17 +432,98 @@ class CrowdVideoDownloader:
             raise DownloadError("CROWD file server redirected to an untrusted origin")
         return response
 
-    def _find_by_crawl(
+    def download_track_file(self, *args: Any, **kwargs: Any) -> Path | None:
+        return self._retrying(lambda: self._download_track_file_once(*args, **kwargs))
+
+    def _download_track_file_once(
+        self,
+        video_id: str,
+        start_second: int,
+        fps: float,
+        remote_folder: str,
+        aliases: Iterable[str],
+        output_directory: Path,
+    ) -> Path | None:
+        """Download the precomputed tracks ``<video_id>_<start>_<fps>.csv`` of one segment.
+
+        ``remote_folder`` is the ``bbox`` folder below each alias on the file server.
+        The names with the video's truncated and rounded frame rate are tried first;
+        otherwise the folder's browse pages are listed once and searched. Returns None
+        when the segment has no track file on the server.
+        """
+
+        from scripts.crowd.crowd_tracks import is_track_file_for
+
+        if any(separator in video_id for separator in ("/", "\\", "\x00")):
+            raise ValueError("CROWD video ID must not contain path separators")
+        folder = "/".join(part for part in str(remote_folder).replace("\\", "/").split("/") if part)
+        if not folder or any(part == ".." for part in folder.split("/")):
+            raise ValueError("crowd_bbox_ftp_folder must be a relative folder on the file server")
+        clean_aliases = [str(alias).strip().strip("/") for alias in aliases]
+        if not clean_aliases or any(not alias for alias in clean_aliases):
+            raise ValueError("crowd_bbox_ftp_aliases must contain at least one alias")
+        names = list(dict.fromkeys(f"{video_id}_{start_second}_{value}.csv" for value in (int(fps), round(fps))))
+        output_directory.mkdir(parents=True, exist_ok=True)
+        encoded_folder = quote(folder, safe="/._-")
+
+        with self.session_factory() as session:
+            if self.username and self.password:
+                session.auth = (self.username, self.password)
+            session.headers.update({"User-Agent": "crowd-jaywalking/1.8"})
+
+            for alias in clean_aliases:
+                for name in names:
+                    url = urljoin(
+                        self.base_url,
+                        f"v/{quote(alias, safe='_-')}/files/{encoded_folder}/{quote(name, safe='._-')}",
+                    )
+                    response = self._get(session, url, stream=True, allow_not_found=True)
+                    if response is None:
+                        continue
+                    destination = output_directory / name
+                    try:
+                        self._save_response(response, destination)
+                    finally:
+                        response.close()
+                    return destination.resolve()
+
+            starts = tuple(
+                urljoin(self.base_url, f"v/{quote(alias, safe='_-')}/browse/{encoded_folder}")
+                for alias in clean_aliases
+            )
+            if starts not in self._listings:
+                # One listing of the bbox folder serves every later segment of the run.
+                self._listings[starts] = self._crawl_files(
+                    session, list(starts), lambda name: name.lower().endswith(".csv")
+                )
+            for url in self._listings[starts]:
+                name = PurePosixPath(urlparse(url).path).name
+                if not is_track_file_for(name, video_id, start_second):
+                    continue
+                response = self._get(session, url, stream=True, allow_not_found=True)
+                if response is None:
+                    continue
+                destination = output_directory / name
+                try:
+                    self._save_response(response, destination)
+                finally:
+                    response.close()
+                return destination.resolve()
+        return None
+
+    def _crawl_files(
         self,
         session: Any,
-        filename: str,
-    ) -> str | None:
-        target = filename.lower()
+        start_urls: list[str],
+        matches: Callable[[str], bool],
+        first_only: bool = False,
+    ) -> list[str]:
+        """File URLs whose name matches, found by walking the browse pages."""
+
+        found: list[str] = []
         visited: set[str] = set()
-        stack = [
-            urljoin(self.base_url, f"v/{quote(alias, safe='_-')}/browse")
-            for alias in reversed(self.aliases)
-        ]
+        stack = list(reversed(start_urls))
+        roots = [urlparse(url).path.rstrip("/") for url in start_urls]
         pages = 0
         while stack:
             url = stack.pop()
@@ -423,7 +535,9 @@ class CrowdVideoDownloader:
                 raise DownloadError(
                     f"CROWD file search exceeded {self.max_pages} browse pages."
                 )
-            response = self._get(session, url, stream=False, allow_not_found=True)
+            response = self._get(
+                session, url, stream=False, allow_not_found=True, read_timeout=LISTING_READ_TIMEOUT_SECONDS
+            )
             if response is None:
                 continue
             try:
@@ -437,11 +551,19 @@ class CrowdVideoDownloader:
                 if not self._same_origin(full):
                     continue
                 path = urlparse(full).path
-                if "/files/" in path and PurePosixPath(path).name.lower() == target:
-                    return full
-                if href.startswith("/v/") and "/browse" in href and full not in visited:
+                if "/files/" in path and matches(PurePosixPath(path).name) and full not in found:
+                    found.append(full)
+                    if first_only:
+                        return found
+                # Only descend: every page links back to its parent folder.
+                if (
+                    href.startswith("/v/")
+                    and "/browse" in href
+                    and full not in visited
+                    and any(path.startswith(root + "/") for root in roots)
+                ):
                     stack.append(full)
-        return None
+        return found
 
     def _save_response(self, response: Any, destination: Path) -> None:
         temporary = destination.with_suffix(destination.suffix + ".part")
@@ -454,7 +576,7 @@ class CrowdVideoDownloader:
         next_progress_report = 100 * 1024 * 1024
         try:
             with temporary.open("wb") as handle:
-                for chunk in response.iter_content(chunk_size=1024 * 1024):
+                for chunk in self._chunks(response):
                     if chunk:
                         handle.write(chunk)
                         written += len(chunk)
@@ -475,14 +597,37 @@ class CrowdVideoDownloader:
             if written <= 0:
                 raise DownloadError("CROWD file server returned an empty video")
             if expected is not None and written != expected:
-                raise DownloadError(
-                    f"Incomplete CROWD video download: expected {expected} bytes, "
+                raise TransientDownloadError(
+                    f"Incomplete CROWD download: expected {expected} bytes, "
                     f"received {written}."
                 )
             temporary.replace(destination)
         except Exception:
             temporary.unlink(missing_ok=True)
             raise
+
+    @staticmethod
+    def _chunks(response: Any) -> Iterable[bytes]:
+        try:
+            yield from response.iter_content(chunk_size=1024 * 1024)
+        except DownloadError:
+            raise
+        except Exception as error:
+            raise TransientDownloadError("CROWD file server connection broke off") from error
+
+    def _retrying(self, attempt: Callable[[], Any]) -> Any:
+        """Run one download, trying again after a transient failure."""
+
+        for number in range(1, DOWNLOAD_ATTEMPTS + 1):
+            try:
+                return attempt()
+            except TransientDownloadError as error:
+                if number == DOWNLOAD_ATTEMPTS:
+                    raise
+                logger.warning("  {} ({}); attempt {} of {}", error, type(error.__cause__).__name__,
+                               number + 1, DOWNLOAD_ATTEMPTS)
+                time.sleep(RETRY_DELAY_SECONDS * number)
+        raise AssertionError("unreachable")
 
     def _same_origin(self, url: str) -> bool:
         parsed = urlparse(url)

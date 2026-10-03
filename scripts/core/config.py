@@ -1,4 +1,8 @@
-"""CROWD style flat project configuration loading and validation."""
+"""CROWD style flat project configuration loading and validation.
+
+The method's settings are in scripts/core/method.py; default.config (copied to
+``config``) holds the user's settings.
+"""
 
 from __future__ import annotations
 
@@ -8,146 +12,38 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from custom_logger import CustomLogger
+from scripts.core.method import METHOD_SETTINGS
 from scripts.core.policy import JaywalkingPolicy
+
+logger = CustomLogger(__name__)  # use custom logger
 
 
 ACTIVE_CONFIG_NAME = "config"
 DEFAULT_CONFIG_NAME = "default.config"
 
-OPTIONAL_CROSSING_DEFAULTS = {
-    "partial_crossing_enabled": True,
-    "partial_exit_min_x_range": 0.48,
-    "partial_exit_min_direction_consistency": 0.0,
-    "perspective_corridor_enabled": False,
-    "road_top_y": 0.0,
-    "road_bottom_y": 1.0,
-    "road_top_left": 0.45,
-    "road_top_right": 0.55,
-    "road_bottom_left": 0.45,
-    "road_bottom_right": 0.55,
-    "strong_complete_override_enabled": False,
-    "strong_complete_min_seconds": 4.0,
-    "strong_complete_min_x_range": 0.45,
-    "strong_complete_min_direction_consistency": 0.85,
-    "camera_min_shared_track_ratio": 0.0,
-}
-
-OPTIONAL_CLASSIFIER_DEFAULTS = {
-    "crossing_classifier_results": "results/jaad_crossing_classifier_v1",
-    "crossing_classifier_model": (
-        "results/jaad_crossing_classifier_v1/crossing_classifier.joblib"
-    ),
-    "crossing_classifier_min_precision": 0.90,
-    "crossing_classifier_cv_folds": 5,
-    "crossing_classifier_threshold_step": 0.01,
-    "crossing_classifier_random_seed": 42,
-    "crossing_classifier_logistic_c_values": [0.10, 1.00, 10.00],
-    "crossing_classifier_gradient_learning_rates": [0.05, 0.10],
-    "crossing_classifier_gradient_max_leaf_nodes": [7, 15],
-    "crossing_decision_mode": "classifier",
-    "crossing_classifier_fallback_to_rules": False,
-    "crossing_classifier_min_track_frames": 5,
-}
-
-# An absent crossing_gate_model disables the gate, which keeps legacy
-# configurations and their fingerprints unchanged.
-OPTIONAL_GATE_DEFAULTS = {
-    "crossing_gate_model": None,
-    "crossing_gate_results": "results/jaad_crossing_gate_v1",
-    "crossing_gate_min_precision": 0.90,
-    "crossing_gate_precision_tiers": [0.98, 0.95, 0.90],
-    "crossing_gate_min_accepted": 30,
-    "crossing_gate_cv_folds": 5,
-    "crossing_gate_learning_rate": 0.05,
-    "crossing_gate_max_leaf_nodes": 15,
-    "crossing_gate_random_seed": 42,
-    # Train the gate with camera compensated motion from BoT-SORT's own GMC.
-    "crossing_gate_camera_motion": False,
-    # Minimum camera compensated sideways motion of an accepted crossing, as a
-    # fraction of image width. Absent or null disables the rule.
-    "crossing_min_scene_x_range": None,
-    # Absent keys keep the legacy behaviour: no VLM crossing check and no rescue.
-    "crossing_vlm_check": False,
-    # v1 counts any carriageway; v3 only the camera car's road, in front of the car.
-    "crossing_vlm_check_version": "v1",
-    "crossing_rescue_min_first_stage": None,
-    "crossing_rescue_min_gate": None,
-}
-
-# Stage 3, run by scripts/law/run_jaywalking_law.py after stages 1 and 2. The model defaults to
-# vlm_model. CROWD segments carry their own location; the country, state, and
-# locality here apply to runs without one, such as JAAD.
-OPTIONAL_LAW_DEFAULTS = {
-    "jaywalking_law_rules": "configs/jaywalking_rules.json",
-    "jaywalking_law_model": None,
-    "jaywalking_law_country": None,
-    "jaywalking_law_state": None,
-    "jaywalking_law_locality": None,
-}
-
-OPTIONAL_CROWD_DEFAULTS = {
-    "mapping": "mapping.csv",
-    "ftp_server": "https://files.mobility-squad.com/",
-    "crowd_results": "results/crowd_jaywalking_v2",
-    "crowd_resume": True,
-    "crowd_ftp_aliases": ["tue4", "tue5"],
-    "crowd_download_dir": "data/crowd_downloads",
-    "crowd_download_timeout_seconds": 20,
-    "crowd_download_max_pages": 500,
-    "crowd_trim_end_margin_seconds": 1.0,
-    "crowd_delete_downloaded_base_videos": False,
-    "crowd_keep_segment_videos": True,
-    "crowd_max_segments": 0,
-    "crowd_audit_random_seed": 42,
-    "crowd_audit_per_stratum": 50,
-}
-
-OPTIONAL_VLM_COMPARISON_DEFAULTS = {
-    "vlm_comparison_models": [
-        "Qwen/Qwen3-VL-8B-Instruct",
-        "google/gemma-4-12B-it",
-    ],
-    "vlm_comparison_prompt_modes": ["baseline_v3", "focused_v5"],
-    "vlm_comparison_results": "results/jaad_vlm_comparison_v5",
-}
-
-OPTIONAL_EVIDENCE_DEFAULTS = {
-    "evidence_trajectory_enabled": True,
-    "evidence_road_crop_margin": 0.12,
-    "evidence_control_crop_bottom": 0.78,
-    "evidence_control_crop_overlap": 0.20,
-    # Frames for the VLM infrastructure check: "transition"
-    # centres them on the crossing, "track" spreads them over the whole track,
-    # so the approach to the junction is seen too.
-    "evidence_infrastructure_span": "transition",
-    "vlm_task_max_frames": 4,
-    "vlm_prompt_mode": "baseline_v3",
-}
-
-OPTIONAL_POLICY_DEFAULTS = {
-    "permission_cues": [
-        "marked_crosswalk",
-        "permissive_pedestrian_signal",
-        "authorised_crossing_sign",
-        "crossing_guard_permission",
-    ],
-    "partial_visibility_uncertain": True,
-    "context_scope": "person",
-    "strict_absence": False,
-}
-
-OPTIONAL_CONTEXT_AUDIT_DEFAULTS = {
-    "jaad_context_sample_size": 120,
-    "jaad_context_sampling_seed": 42,
-}
-
+# The rule detector's settings, passed to it as one dictionary (earlier designs).
 CROSSING_KEYS = (
     "road_left",
     "road_right",
     "boundary_tolerance",
+    "perspective_corridor_enabled",
+    "road_top_y",
+    "road_bottom_y",
+    "road_top_left",
+    "road_top_right",
+    "road_bottom_left",
+    "road_bottom_right",
     "min_track_seconds",
     "min_road_seconds",
     "max_track_gap_seconds",
+    "partial_crossing_enabled",
+    "partial_exit_min_x_range",
+    "partial_exit_min_direction_consistency",
+    "strong_complete_override_enabled",
+    "strong_complete_min_seconds",
+    "strong_complete_min_x_range",
+    "strong_complete_min_direction_consistency",
     "min_crossing_x_range",
     "max_crossing_speed_per_frame",
     "low_x_range",
@@ -178,6 +74,7 @@ CROSSING_KEYS = (
     "min_static_shared_seconds",
     "camera_static_x_range",
     "camera_ratio_threshold",
+    "camera_min_shared_track_ratio",
     "camera_static_relative_x_range",
     "camera_static_height",
     "camera_static_tiny_relative_x_range",
@@ -205,48 +102,26 @@ CROSSING_KEYS = (
     "rider_short_displacement",
 )
 
-REQUIRED_KEYS = {
-    "data",
-    "videos",
-    "source_annotations",
-    "annotations",
-    "evaluation_split",
-    "results",
-    "tracking_model",
-    "bbox_tracker",
-    "min_confidence",
-    "iou",
-    "device",
-    *CROSSING_KEYS,
-    "evidence_sample_positions",
-    "evidence_context_seconds",
-    "evidence_crop_margin",
-    "evidence_max_dimension",
-    "evidence_jpeg_quality",
-    "vlm_model",
-    "vlm_device_map",
-    "vlm_torch_dtype",
-    "vlm_attn_implementation",
-    "vlm_cache_dir",
-    "vlm_local_files_only",
-    "vlm_min_pixels",
-    "vlm_max_pixels",
-    "vlm_max_new_tokens",
-    "prohibitive_signal_overrides_crosswalk",
+CROWD_TRACK_SOURCES = ("precomputed", "tracking")
+
+# Entries that choose which items a run processes, how much it logs, or where local
+# copies of inputs are kept. They never change a result, so the fingerprint ignores
+# them and one results folder can be filled video by video or on another machine.
+RESULT_NEUTRAL_KEYS = (
+    "logger_level",
     "resume",
-    "split_seed",
-    "development_fraction",
-    "validation_fraction",
-    "locked_test_fraction",
-    "jaad_root",
-    "jaad_benchmark_split",
-    "jaad_benchmark_results",
-    "jaad_match_iou",
-    "jaad_min_match_frames",
-    "jaad_min_track_coverage",
-    "jaad_context_split",
-    "jaad_context_results",
-}
+    "crowd_resume",
+    "crowd_video_id",
+    "crowd_max_segments",
+    "jaad_video_id",
+    "smoke_test_video",
+    "crowd_download_dir",
+    "crowd_bbox_dirs",
+    "crowd_bbox_download_dir",
+    "crowd_delete_downloaded_base_videos",
+    "crowd_keep_segment_videos",
+    "vlm_cache_dir",
+)
 
 
 @dataclass(frozen=True)
@@ -258,10 +133,11 @@ class ProjectConfig:
 
     @classmethod
     def load(cls) -> "ProjectConfig":
-        """Read every entry of default.config through common.get_configs.
+        """The method's settings from scripts/core/method.py plus every entry of default.config.
 
-        As in the other CROWD repositories, ``config`` (a local copy of
-        default.config) must exist next to common.py and overrides default.config.
+        As in the other CROWD repositories, ``config`` (a local copy of default.config)
+        must exist next to common.py and is read through common.get_configs. An entry of
+        ``config`` named like a method setting overrides it, and is logged.
         """
 
         import common
@@ -272,7 +148,7 @@ class ProjectConfig:
             names = list(json.loads(template.read_text(encoding="utf-8")))
         except (OSError, json.JSONDecodeError) as error:
             raise ValueError(f"Cannot read the entry names of {template}") from error
-        raw = {}
+        raw = dict(METHOD_SETTINGS)
         for name in names:
             try:
                 raw[name] = common.get_configs(name)
@@ -280,7 +156,21 @@ class ProjectConfig:
                 raise KeyError(
                     f"'{ACTIVE_CONFIG_NAME}' lacks the entry '{name}'; update it from {DEFAULT_CONFIG_NAME}"
                 ) from error
-        config = cls(source_path=root / ACTIVE_CONFIG_NAME, raw=raw)
+        active = root / ACTIVE_CONFIG_NAME
+        local = json.loads(active.read_text(encoding="utf-8")) if active.is_file() else {}
+        for name, value in local.items():
+            if name in names:
+                continue
+            if name in METHOD_SETTINGS:
+                if value != METHOD_SETTINGS[name]:
+                    logger.warning(
+                        "config overrides the method setting {}: {} instead of {}",
+                        name, value, METHOD_SETTINGS[name],
+                    )
+                raw[name] = value
+            else:
+                logger.warning("config entry {} is not a setting and is ignored", name)
+        config = cls(source_path=active, raw=raw)
         config.validate()
         return config
 
@@ -333,14 +223,7 @@ class ProjectConfig:
         }
 
     def crossing_settings(self) -> dict[str, Any]:
-        settings = {key: self.get(key) for key in CROSSING_KEYS}
-        settings.update(
-            {
-                key: self.raw.get(key, default)
-                for key, default in OPTIONAL_CROSSING_DEFAULTS.items()
-            }
-        )
-        return settings
+        return {key: self.get(key) for key in CROSSING_KEYS}
 
     def evidence_settings(self) -> dict[str, Any]:
         return {
@@ -349,27 +232,12 @@ class ProjectConfig:
             "crop_margin": self.get("evidence_crop_margin"),
             "max_dimension": self.get("evidence_max_dimension"),
             "jpeg_quality": self.get("evidence_jpeg_quality"),
-            "trajectory_enabled": self.raw.get(
-                "evidence_trajectory_enabled",
-                OPTIONAL_EVIDENCE_DEFAULTS["evidence_trajectory_enabled"],
-            ),
-            "road_crop_margin": self.raw.get(
-                "evidence_road_crop_margin",
-                OPTIONAL_EVIDENCE_DEFAULTS["evidence_road_crop_margin"],
-            ),
-            "control_crop_bottom": self.raw.get(
-                "evidence_control_crop_bottom",
-                OPTIONAL_EVIDENCE_DEFAULTS["evidence_control_crop_bottom"],
-            ),
-            "control_crop_overlap": self.raw.get(
-                "evidence_control_crop_overlap",
-                OPTIONAL_EVIDENCE_DEFAULTS["evidence_control_crop_overlap"],
-            ),
+            "trajectory_enabled": self.get("evidence_trajectory_enabled"),
+            "road_crop_margin": self.get("evidence_road_crop_margin"),
+            "control_crop_bottom": self.get("evidence_control_crop_bottom"),
+            "control_crop_overlap": self.get("evidence_control_crop_overlap"),
             "infrastructure_span": str(
-                self.raw.get(
-                    "evidence_infrastructure_span",
-                    OPTIONAL_EVIDENCE_DEFAULTS["evidence_infrastructure_span"],
-                )
+                self.get("evidence_infrastructure_span")
             ).strip().lower(),
         }
 
@@ -382,10 +250,7 @@ class ProjectConfig:
             "model_id": model_id or self.get("vlm_model"),
             "prompt_mode": prompt_mode
             or str(
-                self.raw.get(
-                    "vlm_prompt_mode",
-                    OPTIONAL_EVIDENCE_DEFAULTS["vlm_prompt_mode"],
-                )
+                self.get("vlm_prompt_mode")
             ),
             "device_map": self.get("vlm_device_map"),
             "torch_dtype": self.get("vlm_torch_dtype"),
@@ -395,62 +260,36 @@ class ProjectConfig:
             "min_pixels": self.get("vlm_min_pixels"),
             "max_pixels": self.get("vlm_max_pixels"),
             "max_new_tokens": self.get("vlm_max_new_tokens"),
-            "task_max_frames": self.raw.get(
-                "vlm_task_max_frames",
-                OPTIONAL_EVIDENCE_DEFAULTS["vlm_task_max_frames"],
-            ),
-            # "4bit" loads larger VLMs with bitsandbytes; absent or null loads full precision.
-            "quantization": self.raw.get("vlm_quantization"),
+            "task_max_frames": self.get("vlm_task_max_frames"),
+            # "4bit" loads larger VLMs with bitsandbytes; null loads full precision.
+            "quantization": self.get("vlm_quantization"),
         }
 
     def vlm_comparison_settings(self) -> dict[str, Any]:
         """Return model candidates and output location for VLM selection."""
 
-        models_value = self.raw.get(
-            "vlm_comparison_models",
-            OPTIONAL_VLM_COMPARISON_DEFAULTS["vlm_comparison_models"],
-        )
+        models_value = self.get("vlm_comparison_models")
         if not isinstance(models_value, list):
             raise ValueError("vlm_comparison_models must be a list")
-        prompt_modes_value = self.raw.get(
-            "vlm_comparison_prompt_modes",
-            OPTIONAL_VLM_COMPARISON_DEFAULTS["vlm_comparison_prompt_modes"],
-        )
+        prompt_modes_value = self.get("vlm_comparison_prompt_modes")
         if not isinstance(prompt_modes_value, list):
             raise ValueError("vlm_comparison_prompt_modes must be a list")
         return {
             "models": [str(item).strip() for item in models_value],
             "prompt_modes": [str(item).strip().lower() for item in prompt_modes_value],
-            "results": self._resolved_optional_path(
-                "vlm_comparison_results",
-                OPTIONAL_VLM_COMPARISON_DEFAULTS["vlm_comparison_results"],
-            ),
+            "results": self.path("vlm_comparison_results"),
         }
 
     def jaad_context_settings(self) -> dict[str, int]:
         """Return reproducible context audit sampling settings."""
 
         return {
-            "sample_size": int(
-                self.raw.get(
-                    "jaad_context_sample_size",
-                    OPTIONAL_CONTEXT_AUDIT_DEFAULTS["jaad_context_sample_size"],
-                )
-            ),
-            "sampling_seed": int(
-                self.raw.get(
-                    "jaad_context_sampling_seed",
-                    OPTIONAL_CONTEXT_AUDIT_DEFAULTS["jaad_context_sampling_seed"],
-                )
-            ),
+            "sample_size": int(self.get("jaad_context_sample_size")),
+            "sampling_seed": int(self.get("jaad_context_sampling_seed")),
         }
 
     def policy_settings(self) -> dict[str, Any]:
-        # Optional policy keys are deliberately not added to the fingerprint defaults:
-        # configurations that omit them keep the legacy policy and their fingerprint.
-        permission_cues = self.raw.get(
-            "permission_cues", OPTIONAL_POLICY_DEFAULTS["permission_cues"]
-        )
+        permission_cues = self.get("permission_cues")
         if not isinstance(permission_cues, list):
             raise ValueError("permission_cues must be a list")
         return {
@@ -459,27 +298,23 @@ class ProjectConfig:
             ),
             "permission_cues": [str(item).strip().lower() for item in permission_cues],
             "partial_visibility_uncertain": bool(
-                self.raw.get(
-                    "partial_visibility_uncertain",
-                    OPTIONAL_POLICY_DEFAULTS["partial_visibility_uncertain"],
-                )
+                self.get("partial_visibility_uncertain")
             ),
             "context_scope": str(
-                self.raw.get("context_scope", OPTIONAL_POLICY_DEFAULTS["context_scope"])
+                self.get("context_scope")
             ).strip().lower(),
             "strict_absence": bool(
-                self.raw.get("strict_absence", OPTIONAL_POLICY_DEFAULTS["strict_absence"])
+                self.get("strict_absence")
             ),
+            "context_scope_window_seconds": self.get("context_scope_window_seconds"),
         }
 
     def jaywalking_law_settings(self) -> dict[str, Any]:
         """Return settings for stage 3, the country specific jaywalking rule sets."""
 
-        value = lambda name: self.raw.get(name, OPTIONAL_LAW_DEFAULTS[name])
+        value = self.get
         return {
-            "rules": self._resolved_optional_path(
-                "jaywalking_law_rules", OPTIONAL_LAW_DEFAULTS["jaywalking_law_rules"]
-            ),
+            "rules": self.path("jaywalking_law_rules"),
             "vlm": self.vlm_settings(model_id=value("jaywalking_law_model")),
             "country": value("jaywalking_law_country"),
             "state": value("jaywalking_law_state"),
@@ -489,16 +324,14 @@ class ProjectConfig:
     def crossing_gate_settings(self) -> dict[str, Any]:
         """Return settings for the optional high precision crossing gate."""
 
-        value = lambda name: self.raw.get(name, OPTIONAL_GATE_DEFAULTS[name])
-        results = self._resolved_optional_path(
-            "crossing_gate_results", OPTIONAL_GATE_DEFAULTS["crossing_gate_results"]
-        )
+        value = self.get
+        results = self.path("crossing_gate_results")
         model = value("crossing_gate_model")
         return {
             "enabled": model is not None,
             "results": results,
             "model": (
-                self._resolved_optional_path("crossing_gate_model", "")
+                self.path("crossing_gate_model")
                 if model is not None
                 else results / "crossing_gate.joblib"
             ),
@@ -523,17 +356,11 @@ class ProjectConfig:
     def crossing_classifier_settings(self) -> dict[str, Any]:
         """Return effective settings for supervised crossing classification."""
 
-        value = lambda name: self.raw.get(name, OPTIONAL_CLASSIFIER_DEFAULTS[name])
+        value = self.get
         return {
             "benchmark_results": self.path("jaad_benchmark_results"),
-            "results": self._resolved_optional_path(
-                "crossing_classifier_results",
-                OPTIONAL_CLASSIFIER_DEFAULTS["crossing_classifier_results"],
-            ),
-            "model": self._resolved_optional_path(
-                "crossing_classifier_model",
-                OPTIONAL_CLASSIFIER_DEFAULTS["crossing_classifier_model"],
-            ),
+            "results": self.path("crossing_classifier_results"),
+            "model": self.path("crossing_classifier_model"),
             "min_precision": float(value("crossing_classifier_min_precision")),
             "cv_folds": int(value("crossing_classifier_cv_folds")),
             "threshold_step": float(value("crossing_classifier_threshold_step")),
@@ -557,22 +384,16 @@ class ProjectConfig:
     def crowd_settings(self) -> dict[str, Any]:
         """Return batch execution and manual audit settings for CROWD."""
 
-        value = lambda name: self.raw.get(name, OPTIONAL_CROWD_DEFAULTS[name])
+        value = self.get
         return {
-            "mapping": self._resolved_optional_path(
-                "mapping", OPTIONAL_CROWD_DEFAULTS["mapping"]
-            ),
+            "mapping": self.path("mapping"),
             "ftp_server": str(value("ftp_server")).strip(),
-            "results": self._resolved_optional_path(
-                "crowd_results", OPTIONAL_CROWD_DEFAULTS["crowd_results"]
-            ),
+            "results": self.path("crowd_results"),
             "resume": bool(value("crowd_resume")),
             "ftp_aliases": [
                 str(item).strip() for item in value("crowd_ftp_aliases")
             ],
-            "download_dir": self._resolved_optional_path(
-                "crowd_download_dir", OPTIONAL_CROWD_DEFAULTS["crowd_download_dir"]
-            ),
+            "download_dir": self.path("crowd_download_dir"),
             "download_timeout_seconds": int(value("crowd_download_timeout_seconds")),
             "download_max_pages": int(value("crowd_download_max_pages")),
             "trim_end_margin_seconds": float(value("crowd_trim_end_margin_seconds")),
@@ -583,29 +404,22 @@ class ProjectConfig:
             "max_segments": int(value("crowd_max_segments")),
             "audit_random_seed": int(value("crowd_audit_random_seed")),
             "audit_per_stratum": int(value("crowd_audit_per_stratum")),
+            "tracks_source": str(value("crowd_tracks_source")).strip().lower(),
+            "bbox_dirs": [
+                candidate.resolve() if candidate.is_absolute() else (self.root / candidate).resolve()
+                for candidate in (Path(str(item)) for item in value("crowd_bbox_dirs") or [])
+            ],
+            "bbox_ftp_folder": str(value("crowd_bbox_ftp_folder") or "").strip(),
+            "bbox_ftp_aliases": [
+                str(item).strip() for item in value("crowd_bbox_ftp_aliases") or []
+            ],
+            "bbox_download_dir": self.path("crowd_bbox_download_dir"),
         }
-
-    def _resolved_optional_path(self, name: str, default: str) -> Path:
-        value = self.raw.get(name, default)
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError(f"Configuration entry must be a path string: {name}")
-        candidate = Path(value)
-        return candidate.resolve() if candidate.is_absolute() else (self.root / candidate).resolve()
 
     def fingerprint(self, prompt_version: str) -> str:
         effective_config = dict(self.raw)
-        for key, default in OPTIONAL_CROSSING_DEFAULTS.items():
-            effective_config.setdefault(key, default)
-        for key, default in OPTIONAL_CLASSIFIER_DEFAULTS.items():
-            effective_config.setdefault(key, default)
-        for key, default in OPTIONAL_CROWD_DEFAULTS.items():
-            effective_config.setdefault(key, default)
-        for key, default in OPTIONAL_VLM_COMPARISON_DEFAULTS.items():
-            effective_config.setdefault(key, default)
-        for key, default in OPTIONAL_EVIDENCE_DEFAULTS.items():
-            effective_config.setdefault(key, default)
-        for key, default in OPTIONAL_CONTEXT_AUDIT_DEFAULTS.items():
-            effective_config.setdefault(key, default)
+        for key in RESULT_NEUTRAL_KEYS:
+            effective_config.pop(key, None)
         payload = {
             "config": effective_config,
             "prompt_version": prompt_version,
@@ -614,7 +428,7 @@ class ProjectConfig:
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     def validate(self) -> None:
-        missing = sorted(REQUIRED_KEYS.difference(self.raw))
+        missing = sorted(set(METHOD_SETTINGS).difference(self.raw))
         if missing:
             raise ValueError(f"Missing configuration entries: {', '.join(missing)}")
         nested = sorted(key for key, value in self.raw.items() if isinstance(value, dict))
@@ -633,17 +447,11 @@ class ProjectConfig:
         right = float(self.get("road_right"))
         if not 0.0 <= left < right <= 1.0:
             raise ValueError("road_left and road_right must satisfy 0 <= left < right <= 1")
-        partial_crossing_enabled = self.raw.get(
-            "partial_crossing_enabled",
-            OPTIONAL_CROSSING_DEFAULTS["partial_crossing_enabled"],
-        )
+        partial_crossing_enabled = self.get("partial_crossing_enabled")
         if not isinstance(partial_crossing_enabled, bool):
             raise ValueError("partial_crossing_enabled must be true or false")
         partial_exit_min_x_range = float(
-            self.raw.get(
-                "partial_exit_min_x_range",
-                OPTIONAL_CROSSING_DEFAULTS["partial_exit_min_x_range"],
-            )
+            self.get("partial_exit_min_x_range")
         )
         if not 0.0 <= partial_exit_min_x_range <= 1.0:
             raise ValueError("partial_exit_min_x_range must be between 0 and 1")
@@ -653,7 +461,7 @@ class ProjectConfig:
             "strong_complete_min_direction_consistency",
             "camera_min_shared_track_ratio",
         ):
-            value = float(self.raw.get(name, OPTIONAL_CROSSING_DEFAULTS[name]))
+            value = float(self.get(name))
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{name} must be between 0 and 1")
 
@@ -661,22 +469,22 @@ class ProjectConfig:
             "perspective_corridor_enabled",
             "strong_complete_override_enabled",
         ):
-            value = self.raw.get(name, OPTIONAL_CROSSING_DEFAULTS[name])
+            value = self.get(name)
             if not isinstance(value, bool):
                 raise ValueError(f"{name} must be true or false")
 
-        road_top_y = float(self.raw.get("road_top_y", OPTIONAL_CROSSING_DEFAULTS["road_top_y"]))
+        road_top_y = float(self.get("road_top_y"))
         road_bottom_y = float(
-            self.raw.get("road_bottom_y", OPTIONAL_CROSSING_DEFAULTS["road_bottom_y"])
+            self.get("road_bottom_y")
         )
         if not 0.0 <= road_top_y < road_bottom_y <= 1.0:
             raise ValueError("road_top_y and road_bottom_y must satisfy 0 <= top < bottom <= 1")
         for prefix in ("road_top", "road_bottom"):
             corridor_left = float(
-                self.raw.get(f"{prefix}_left", OPTIONAL_CROSSING_DEFAULTS[f"{prefix}_left"])
+                self.get(f"{prefix}_left")
             )
             corridor_right = float(
-                self.raw.get(f"{prefix}_right", OPTIONAL_CROSSING_DEFAULTS[f"{prefix}_right"])
+                self.get(f"{prefix}_right")
             )
             if not 0.0 <= corridor_left < corridor_right <= 1.0:
                 raise ValueError(
@@ -684,17 +492,11 @@ class ProjectConfig:
                 )
 
         if float(
-            self.raw.get(
-                "strong_complete_min_seconds",
-                OPTIONAL_CROSSING_DEFAULTS["strong_complete_min_seconds"],
-            )
+            self.get("strong_complete_min_seconds")
         ) < 0.0:
             raise ValueError("strong_complete_min_seconds must be non-negative")
         strong_complete_min_x_range = float(
-            self.raw.get(
-                "strong_complete_min_x_range",
-                OPTIONAL_CROSSING_DEFAULTS["strong_complete_min_x_range"],
-            )
+            self.get("strong_complete_min_x_range")
         )
         if not 0.0 <= strong_complete_min_x_range <= 1.0:
             raise ValueError("strong_complete_min_x_range must be between 0 and 1")
@@ -706,21 +508,15 @@ class ProjectConfig:
             raise ValueError("Every evidence sample position must be between 0 and 1")
         if float(self.get("evidence_context_seconds")) < 0.0:
             raise ValueError("evidence_context_seconds must be non-negative")
-        trajectory_enabled = self.raw.get(
-            "evidence_trajectory_enabled",
-            OPTIONAL_EVIDENCE_DEFAULTS["evidence_trajectory_enabled"],
-        )
+        trajectory_enabled = self.get("evidence_trajectory_enabled")
         if not isinstance(trajectory_enabled, bool):
             raise ValueError("evidence_trajectory_enabled must be true or false")
         if not 0.0 <= float(
-            self.raw.get(
-                "evidence_road_crop_margin",
-                OPTIONAL_EVIDENCE_DEFAULTS["evidence_road_crop_margin"],
-            )
+            self.get("evidence_road_crop_margin")
         ) <= 0.5:
             raise ValueError("evidence_road_crop_margin must be between 0 and 0.5")
         for name in ("evidence_control_crop_bottom", "evidence_control_crop_overlap"):
-            value = float(self.raw.get(name, OPTIONAL_EVIDENCE_DEFAULTS[name]))
+            value = float(self.get(name))
             if not 0.0 < value <= 1.0:
                 raise ValueError(f"{name} must be greater than 0 and at most 1")
 
@@ -738,10 +534,7 @@ class ProjectConfig:
         if int(self.get("vlm_max_new_tokens")) <= 0:
             raise ValueError("vlm_max_new_tokens must be positive")
         if int(
-            self.raw.get(
-                "vlm_task_max_frames",
-                OPTIONAL_EVIDENCE_DEFAULTS["vlm_task_max_frames"],
-            )
+            self.get("vlm_task_max_frames")
         ) <= 0:
             raise ValueError("vlm_task_max_frames must be positive")
 
@@ -755,10 +548,7 @@ class ProjectConfig:
             "zebra_light_v5",
         }
         prompt_mode = str(
-            self.raw.get(
-                "vlm_prompt_mode",
-                OPTIONAL_EVIDENCE_DEFAULTS["vlm_prompt_mode"],
-            )
+            self.get("vlm_prompt_mode")
         ).strip().lower()
         if prompt_mode not in valid_prompt_modes:
             raise ValueError(
@@ -828,10 +618,7 @@ class ProjectConfig:
         classifier = self.crossing_classifier_settings()
         if classifier["decision_mode"] not in {"classifier", "rules", "crowd_city"}:
             raise ValueError("crossing_decision_mode must be one of: classifier, rules, crowd_city")
-        fallback = self.raw.get(
-            "crossing_classifier_fallback_to_rules",
-            OPTIONAL_CLASSIFIER_DEFAULTS["crossing_classifier_fallback_to_rules"],
-        )
+        fallback = self.get("crossing_classifier_fallback_to_rules")
         if not isinstance(fallback, bool):
             raise ValueError("crossing_classifier_fallback_to_rules must be true or false")
         if classifier["min_track_frames"] < 1:
@@ -858,7 +645,7 @@ class ProjectConfig:
             "crowd_delete_downloaded_base_videos",
             "crowd_keep_segment_videos",
         ):
-            value = self.raw.get(name, OPTIONAL_CROWD_DEFAULTS[name])
+            value = self.get(name)
             if not isinstance(value, bool):
                 raise ValueError(f"{name} must be true or false")
         if not crowd["ftp_server"]:
@@ -875,3 +662,12 @@ class ProjectConfig:
             raise ValueError("crowd_max_segments must be zero or positive")
         if crowd["audit_per_stratum"] < 1:
             raise ValueError("crowd_audit_per_stratum must be positive")
+        if crowd["tracks_source"] not in CROWD_TRACK_SOURCES:
+            raise ValueError("crowd_tracks_source must be one of: " + ", ".join(CROWD_TRACK_SOURCES))
+        if not isinstance(self.get("crowd_bbox_dirs"), list):
+            raise ValueError("crowd_bbox_dirs must be a list of folders")
+        if crowd["tracks_source"] == "precomputed" and crowd["bbox_ftp_folder"]:
+            if any(not item for item in crowd["bbox_ftp_aliases"]) or not crowd["bbox_ftp_aliases"]:
+                raise ValueError("crowd_bbox_ftp_aliases must contain at least one alias")
+        if crowd["tracks_source"] == "precomputed" and not (crowd["bbox_dirs"] or crowd["bbox_ftp_folder"]):
+            raise ValueError("Precomputed CROWD tracks need crowd_bbox_dirs or crowd_bbox_ftp_folder")

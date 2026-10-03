@@ -161,12 +161,41 @@ def parse(lines: list[str]) -> list[dict]:
     return entries
 
 
+def keep_supplementary(entries: list[dict], output: Path) -> None:
+    """Carry the hand-added ``supplementary`` conditions of the old rule file over.
+
+    They are not in the PDF. A rebuild stops when a condition one of them overrides
+    no longer exists, so it can be fixed by hand instead of silently dropped.
+    """
+
+    if not output.is_file():
+        return
+    previous = json.loads(output.read_text(encoding="utf-8")).get("countries", {})
+    by_iso = {entry["iso"]: entry for entry in entries}
+    for iso, old in previous.items():
+        items = old.get("supplementary")
+        if not items:
+            continue
+        entry = by_iso.get(iso)
+        if entry is None:
+            raise SystemExit(f"{iso} has supplementary conditions but is no longer in the PDF")
+        ids = {item["id"] for item in entry["required"] + entry["triggers"]}
+        missing = sorted(
+            {target for item in items for changes in item["overrides"].values() for target in changes} - ids
+        )
+        if missing:
+            raise SystemExit(f"{iso} supplementary conditions override missing conditions: {missing}")
+        entry["supplementary"] = items
+        logger.info("Kept {} supplementary condition(s) for {}", len(items), iso)
+
+
 def main() -> None:
     pdf, output = Path(sys.argv[1]), Path(sys.argv[2])
     entries = parse(pdf_lines(pdf))
     if len(entries) != 51 or len({e["iso"] for e in entries}) != 51:
         raise SystemExit(f"Expected 51 distinct countries, parsed {len(entries)}")
     output.parent.mkdir(parents=True, exist_ok=True)
+    keep_supplementary(entries, output)
     payload = {
         "source": pdf.name,
         "edition": "Edition 3, last updated March 20, 2026",

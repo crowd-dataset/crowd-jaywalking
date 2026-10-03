@@ -173,7 +173,23 @@
       "legal_basis": "Illegal (Provincial Highway Traffic Acts)",
       "fines": "Regulated at the provincial level; fines range from $35 to $167 CAD depending on the province (e.g., Ontario Highway Traffic Act s. 144, British Columbia Motor Vehicle Act s. 179).",
       "details": "Enforcement varies widely by municipality, with active ticketing in high-density downtown cores like Toronto and Vancouver. Spatial Jurisdiction Clarification: These provincial statutes govern public highways, municipal streets, and public thoroughfares exclusively. Pedestrian movement inside private property, enclosed shopping malls, corporate office parks, or university campuses is entirely outside the scope of traffic acts and is never legally classified or penalized as jaywalking.",
-      "source": "Ontario Highway Traffic Act"
+      "source": "Ontario Highway Traffic Act",
+      "supplementary": [
+        {
+          "id": "CAN-X1",
+          "text": "The pedestrian crosses at a road intersection or junction, inside its unmarked crosswalk: the part of the crossed road between the extended lines of the sidewalks or kerbs on either side, where it meets another street. Evidence: a cross street, kerb corners, or a stop, yield, or junction sign at the crossing point. Answer NO when the crossing is clearly between intersections (mid-block).",
+          "overrides": {
+            "YES": {
+              "CAN-R3": "NO"
+            },
+            "UNKNOWN": {
+              "CAN-R3": "UNKNOWN"
+            }
+          },
+          "legal_basis": "Provincial Highway Traffic Acts, e.g. Ontario Highway Traffic Act s. 1(1), 'crosswalk' (a): the part of a highway at an intersection within the connections of the lateral lines of the sidewalks on opposite sides.",
+          "note": "Added by hand on 2026-10-02, not taken from Global_Jaywalking_Laws.pdf: the rule set treats a designated crossing as marked or signalised, but an unmarked crosswalk at an intersection is one too. Kept by build_jaywalking_rules.py when the PDF is rebuilt. To be confirmed by the maintainer of the law document."
+        }
+      ]
     },
     "CHN": {
       "number": 6,
@@ -1575,7 +1591,23 @@
       "legal_basis": "Illegal in most states (State and Municipal Traffic Codes)",
       "fines": "Fines where enforced range from $25 to $250 USD.",
       "details": "Jaywalking legislation is entirely state and municipal. Recent legislative trends have seen major decriminalization: California enacted AB 2147 (Freedom to Walk Act), allowing police to cite pedestrians only when an immediate collision hazard exists, and New York City decriminalized jaywalking in 2023. Other states (e.g., Texas, Florida) retain traditional enforcement. Spatial Jurisdiction Clarification: Statutes apply strictly to public roadways and streets; crossing inside private shopping malls, corporate parks, or university campuses does not constitute statutory jaywalking.",
-      "source": "California Legislative Information (AB 2147)"
+      "source": "California Legislative Information (AB 2147)",
+      "supplementary": [
+        {
+          "id": "USA-X1",
+          "text": "The pedestrian crosses at a road intersection or junction, inside its unmarked crosswalk: the part of the crossed road between the extended lines of the sidewalks or kerbs on either side, where it meets another street. Evidence: a cross street, kerb corners, or a stop, yield, or junction sign at the crossing point. Answer NO when the crossing is clearly between intersections (mid-block).",
+          "overrides": {
+            "YES": {
+              "USA-R5": "NO"
+            },
+            "UNKNOWN": {
+              "USA-R5": "UNKNOWN"
+            }
+          },
+          "legal_basis": "Uniform Vehicle Code s. 1-112 and state codes, e.g. Texas Transportation Code s. 541.302(2)(B): the part of a roadway at an intersection within the connections of the lateral lines of the sidewalks is a crosswalk, marked or not.",
+          "note": "Added by hand on 2026-10-02, not taken from Global_Jaywalking_Laws.pdf: the rule set treats a designated crossing as marked or signalised, but an unmarked crosswalk at an intersection is one too. Kept by build_jaywalking_rules.py when the PDF is rebuilt. To be confirmed by the maintainer of the law document."
+        }
+      ]
     },
     "VNM": {
       "number": 49,

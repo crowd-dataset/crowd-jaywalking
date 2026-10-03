@@ -23,6 +23,7 @@ from scripts.crowd.crowd_source import (
     load_crowd_mapping,
     probe_video,
 )
+from scripts.crowd.crowd_tracks import find_local_track_file, load_crowd_tracks
 from scripts.core.models import DecisionLabel, to_jsonable
 from scripts.core.pipeline import JaywalkingPipeline
 from scripts.core.tracking import save_observations_csv
@@ -234,6 +235,17 @@ class CrowdAnalysisRunner:
                     continue
 
                 logger.info("[{:05d}/{:05d}] {}", completed, total, segment.video_key)
+                track_file: Path | None = None
+                track_source = "tracking"
+                if self.settings["tracks_source"] == "precomputed":
+                    try:
+                        # The track file name carries the source video's frame rate.
+                        source_fps = probe_video(prepared.path)[0]
+                        track_file, track_source = self._precomputed_track_file(segment, source_fps)
+                    except Exception as error:
+                        failures.append(self._failure(segment, "tracks", error))
+                        logger.info("  ERROR {}: {}", type(error).__name__, error)
+                        continue
                 try:
                     segment_video = extract_video_segment(
                         source=prepared.path,
@@ -247,7 +259,13 @@ class CrowdAnalysisRunner:
                     if pipeline is None:
                         pipeline = JaywalkingPipeline(self.config)
                     started = time.perf_counter()
-                    fps, observations = pipeline.tracker.track(segment_video.path)
+                    if track_file is None:
+                        fps, observations = pipeline.tracker.track(segment_video.path)
+                    else:
+                        fps = segment_video.source_fps
+                        observations = load_crowd_tracks(
+                            track_file, max_frames=segment_video.output_frames
+                        )
                     tracking_path = save_observations_csv(
                         self.tracking / f"{segment.video_key}.csv", observations
                     )
@@ -269,6 +287,8 @@ class CrowdAnalysisRunner:
                         "download_source": prepared.source,
                         "fps": fps,
                         "tracking_csv": str(tracking_path),
+                        "tracks_source": track_source,
+                        "precomputed_tracks": str(track_file) if track_file else None,
                         "crossing_method": pipeline.crossing_method,
                         "trim": {
                             "requested_start_second": segment_video.requested_start_second,
@@ -356,6 +376,40 @@ class CrowdAnalysisRunner:
             )
         return self._downloader_instance
 
+    def _precomputed_track_file(self, segment: CrowdSegment, fps: float) -> tuple[Path, str]:
+        """The CROWD track CSV of one segment and where it came from.
+
+        The configured local ``bbox`` folders are searched first, then the download
+        folder of earlier runs, then the ``bbox`` folder on the file server. A segment
+        without precomputed tracks is an error, never silently tracked again.
+        """
+
+        local = find_local_track_file(
+            segment.video_id, segment.start_second, self.settings["bbox_dirs"], fps
+        )
+        if local is not None:
+            return local, "precomputed_local"
+        cached = find_local_track_file(
+            segment.video_id, segment.start_second, [self.settings["bbox_download_dir"]], fps
+        )
+        if cached is not None:
+            return cached, "precomputed_cache"
+        if self.settings["bbox_ftp_folder"]:
+            downloaded = self._downloader().download_track_file(
+                segment.video_id,
+                segment.start_second,
+                fps,
+                self.settings["bbox_ftp_folder"],
+                self.settings["bbox_ftp_aliases"],
+                self.settings["bbox_download_dir"],
+            )
+            if downloaded is not None:
+                return downloaded, "precomputed_ftp"
+        raise FileNotFoundError(
+            f"No precomputed CROWD tracks {segment.video_id}_{segment.start_second}_*.csv "
+            "in crowd_bbox_dirs or on the file server"
+        )
+
     @staticmethod
     def _failure(
         segment: CrowdSegment,
@@ -392,6 +446,8 @@ class CrowdAnalysisRunner:
             "mapping_sha256": _sha256(mapping_path),
             "file_server_origin": f"{server.scheme}://{server.netloc}",
             "file_server_aliases": list(self.settings["ftp_aliases"]),
+            "tracks_source": self.settings["tracks_source"],
+            "bbox_ftp_folder": self.settings["bbox_ftp_folder"],
             "trim_end_margin_seconds": self.settings["trim_end_margin_seconds"],
             "crossing_decision_mode": classifier["decision_mode"],
             "crossing_classifier_model": str(model_path),

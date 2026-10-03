@@ -44,7 +44,7 @@ Each stage answers one question, and a claim needs every stage to agree. Any dou
 2. **Stage 2: the VLM checks the snippet** (Qwen3-VL-8B-Instruct).
    * **Crossing check** (prompt `v3`): does the person walk across the road the camera car is driving on, in front of the car? Crossing a side street or another road is not of interest. Only a clear YES continues.
    * **Infrastructure check** (prompt `zebra_light_v5`): is there a zebra crossing, a traffic light, or a pedestrian crossing sign? This prompt never judges the person. A fixed policy then requires every infrastructure answer to be NO, for this person and for every other crossing person in the clip.
-3. **Stage 3: the law.** Whether such a crossing is jaywalking depends on the country. A separate step (`scripts/law/run_jaywalking_law.py`) retrieves the rule set of the video's country from `Global_Jaywalking_Laws.pdf` (51 countries), asks the VLM YES, NO, or UNKNOWN on each numbered condition, and computes the label from the rule set's decision rule. The model never chooses the label.
+3. **Stage 3: the law.** Whether such a crossing is jaywalking depends on the country. A separate step (`scripts/law/run_jaywalking_law.py`) retrieves the rule set of the video's country from `Global_Jaywalking_Laws.pdf` (51 countries), asks the VLM YES, NO, or UNKNOWN on each numbered condition (plus any hand-added `supplementary` condition of that country, see [Limitations](#limitations)), and computes the label from the rule set's decision rule. The model never chooses the label.
 
 ## What the VLM sees
 
@@ -123,19 +123,20 @@ uv run python -c "import torch; print(torch.__version__, torch.cuda.is_available
 
 ### 2. Configuration and secrets
 
-The project follows the CROWD repositories' convention: `default.config` is the committed template with every setting, and `config` is your local copy (ignored by Git). Settings are read with `common.get_configs`, credentials with `common.get_secrets`, and logging goes through `custom_logger.CustomLogger` at `logger_level`.
+The project follows the CROWD repositories' convention: `default.config` is the committed template of the user settings (paths, which split or video to run, models and GPU memory, the CROWD file server, logging), and `config` is your local copy (ignored by Git). Settings are read with `common.get_configs`, credentials with `common.get_secrets`, and logging goes through `custom_logger.CustomLogger` at `logger_level`. The method's own values (thresholds, prompts, policy, evidence views) are fixed in `scripts/core/method.py`, not in `default.config`.
 
 ```powershell
 Copy-Item .\default.config .\config
 Copy-Item .\default.secret .\secret      # only for downloading CROWD videos
 ```
 
-Edit `config` for paths and experiments. When `default.config` gains settings, add them to `config` too: a `config` with fewer entries than `default.config` stops the run. `secret` holds `ftp_username`, `ftp_password`, and optionally `ftp_token` for the CROWD file server. Every setting is described in the [configuration reference](#configuration-reference).
+Edit `config` for paths and runs. When `default.config` gains settings, add them to `config` too: a `config` that lacks an entry of `default.config` stops the run. To try a different method value, add that setting to `config` (see the [configuration reference](#configuration-reference)); the run logs every such override. `secret` holds `ftp_username`, `ftp_password`, and optionally `ftp_token` for the CROWD file server. Every setting is described in the [configuration reference](#configuration-reference).
 
 ### 3. Data
 
 * **JAAD**: `.\scripts\jaad\download_jaad.ps1` downloads the JAAD 2.0 annotations and all 346 clips into `data/JAAD`.
 * **CROWD**: `mapping.csv` lists every CROWD source video, its segments, city, state, and country. Videos are taken from the `videos` folders or downloaded from the file server into `crowd_download_dir`.
+* **CROWD tracks**: by default (`crowd_tracks_source` `"precomputed"`) the run uses the YOLO11x + BoT-SORT tracks CROWD has already computed, one `<video_id>_<start_second>_<fps>.csv` per segment in its `bbox` folder (`/media/salam/crowd-tue-3/pedestrians_in-youtube/data/bbox`). They are read from `crowd_bbox_dirs` when that folder is mounted, otherwise downloaded from the same file server as the videos (`crowd_bbox_ftp_folder` below each of `crowd_bbox_ftp_aliases`) into `crowd_bbox_download_dir`. A segment without a track file is recorded in `errors.csv` (stage `tracks`), not tracked again. The videos are still needed for the evidence images.
 * **Jaywalking laws**: `data/Global_Jaywalking_Laws.pdf`, converted into `configs/jaywalking_rules.json` (committed).
 
 ## Running
@@ -157,33 +158,96 @@ Tools from the earlier designs are still available: `scripts/crossing/train_jaad
 
 ## Configuration reference
 
-Every entry of `default.config`. Paths are relative to the repository root unless absolute. `null` means unset. Fractions of the image are of its width (x) or height (y). Durations in seconds are converted to frames at the video's frame rate.
+Settings live in two places. Paths are relative to the repository root unless absolute. `null` means unset. Fractions of the image are of its width (x) or height (y). Durations in seconds are converted to frames at the video's frame rate.
 
-### Paths, logging, and run selection
+* **`default.config`** (copied to `config`): what you set for your machine and run, listed first.
+* **`scripts/core/method.py`**: the method's fixed values, the ones the results in this README were made with. They are not in `default.config`. To change one, add an entry with the same name to `config`; it overrides the code value, is validated like any other setting, and the run logs a warning naming it. An entry in `config` that is neither kind is ignored with a warning.
+
+### Settings in `default.config`
+
+#### Logging and run selection
+
+| Setting | Default | Meaning and allowed values |
+| --- | --- | --- |
+| `logger_level` | `"info"` | Console log level: `"debug"`, `"info"`, `"warning"`, `"error"` |
+| `resume` | `true` | Skip videos whose results are already saved. `true` or `false` |
+| `jaad_benchmark_split` | `"train"` | Split tracked by `scripts/jaad/run_jaad_crossing_benchmark.py`: `"train"`, `"val"`, `"test"` |
+| `jaad_audit_split` | `"test"` | JAAD split audited by `scripts/jaad/run_jaad_person_audit.py`: `"train"`, `"val"`, `"test"` |
+| `jaad_context_split` | `"train"` | Split of the VLM context benchmark: `"train"`, `"val"` (selection refuses `"test"`) |
+| `evaluation_split` | `"development"` | Split evaluated by `scripts/evaluation/run_evaluation.py`: `"development"`, `"validation"`, `"locked_test"` |
+| `jaad_video_id` | `""` | Process only this JAAD video (for example `"video_0084"`); `""` processes the split |
+| `smoke_test_video` | `""` | Video path for `scripts/evaluation/run_one_video.py` |
+| `crowd_video_id` | `""` | Process only this CROWD source video ID; `""` processes all |
+| `crowd_max_segments` | `0` | Process at most this many segments; `0` processes all |
+
+#### Paths
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
 | `data` | `["data"]` | Folders searched for the human annotation CSVs. List of paths |
 | `videos` | `["data/videos"]` | Folders searched for videos (the labelled JAAD evaluation clips, and local CROWD source videos before downloading). List of paths |
 | `results` | `"results/jaad_crowd_city_vlm_v3"` | Output folder of JAAD runs (audit, evaluation, smoke test). A new folder per experiment |
-| `resume` | `true` | Skip videos whose results are already saved. `true` or `false` |
-| `logger_level` | `"info"` | Console log level: `"debug"`, `"info"`, `"warning"`, `"error"` |
-| `jaad_audit_split` | `"test"` | JAAD split audited by `scripts/jaad/run_jaad_person_audit.py`: `"train"`, `"val"`, `"test"` |
-| `smoke_test_video` | `""` | Video path for `scripts/evaluation/run_one_video.py` |
-| `crowd_video_id` | `""` | Process only this CROWD source video ID; `""` processes all |
-| `jaad_video_id` | `""` | Process only this JAAD video (for example `"video_0084"`); `""` processes the split |
+| `mapping` | `"mapping.csv"` | CROWD mapping: source videos, segments, time of day, city, state, ISO country code |
+| `jaad_root` | `"data/JAAD"` | JAAD 2.0 folder (annotations and `JAAD_clips`) |
+| `jaad_benchmark_results` | `"results/jaad_yolo11x"` | Saved JAAD tracks per split (and `camera_motion/`) |
+| `jaad_context_results` | `"results/jaad_context_audit_v5"` | Output folder of the context benchmark |
+| `vlm_comparison_results` | `"results/jaad_vlm_comparison_v5"` | Output folder of the VLM comparison, `scripts/context/compare_jaad_context_models.py` (earlier designs) |
+| `source_annotations` | `"annotations.csv"` | Human video labels (`video_id,filename,label`, label `Yes`, `No`, or other) |
+| `annotations` | `"annotations_with_splits.csv"` | The same labels with frozen splits, written by `scripts/evaluation/prepare_splits.py` |
 
-### Tracking
+#### Models and GPU
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
 | `tracking_model` | `"yolo11x.pt"` | Ultralytics detector weights. `yolo11x.pt` matches the precomputed CROWD tracks; `yolo26x.pt` was used by the earlier designs |
+| `device` | `null` | Tracking device: `null` (automatic), `"cpu"`, `"cuda"`, `"cuda:0"`, ... |
+| `vlm_model` | `"Qwen/Qwen3-VL-8B-Instruct"` | Hugging Face model for stage 2. Qwen2.5-VL, Qwen3-VL, Qwen3.5, and Gemma vision models are supported |
+| `vlm_device_map` | `"auto"` | Accelerate device placement: `"auto"`, `"cuda"`, `"cpu"` |
+| `vlm_torch_dtype` | `"auto"` | `"auto"`, `"bfloat16"`, `"float16"`, `"float32"` |
+| `vlm_attn_implementation` | `null` | `null` (default), `"sdpa"`, `"flash_attention_2"`, `"eager"` |
+| `vlm_quantization` | `null` | `"4bit"` loads larger models with bitsandbytes; `null` loads full precision |
+| `vlm_min_pixels`, `vlm_max_pixels` | `200704`, `250880` | Pixel budget per image. 250880 keeps one call within 32 GB of VRAM; lower it on smaller GPUs (calls that spill into shared memory on Windows become tens of times slower) |
+| `vlm_cache_dir` | `null` | Hugging Face cache folder; `null` uses the normal cache |
+| `vlm_local_files_only` | `false` | `true` never downloads weights |
+
+#### CROWD
+
+| Setting | Default | Meaning and allowed values |
+| --- | --- | --- |
+| `ftp_server` | `"https://files.mobility-squad.com/"` | CROWD file server; credentials come from `secret` |
+| `crowd_ftp_aliases` | `["tue4", "tue5"]` | Server folders searched for a video |
+| `crowd_results` | `"results/crowd_jaywalking"` | Output folder of `scripts/crowd/run_crowd_analysis.py` |
+| `crowd_resume` | `true` | Skip segments already processed |
+| `crowd_download_dir` | `"data/crowd_downloads"` | Where downloaded source videos are kept |
+| `crowd_delete_downloaded_base_videos` | `false` | Delete a source video once its segments are processed |
+| `crowd_keep_segment_videos` | `true` | Keep the cut segment videos |
+| `crowd_tracks_source` | `"precomputed"` | `"precomputed"`: CROWD's own track CSVs (`frame-count` 1 is the first frame of the segment). `"tracking"`: track each segment again with `tracking_model` |
+| `crowd_bbox_dirs` | `["/media/salam/crowd-tue-3/pedestrians_in-youtube/data/bbox"]` | Local `bbox` folders searched first; missing folders are skipped. List of paths, may be empty |
+| `crowd_bbox_ftp_folder` | `"pedestrians_in-youtube/data/bbox"` | The `bbox` folder on the file server, relative to each alias (`v/<alias>/files/<folder>/<name>.csv`); `""` disables downloading |
+| `crowd_bbox_ftp_aliases` | `["data"]` | File server aliases searched for `crowd_bbox_ftp_folder`; `data` serves `/media/salam/crowd-tue-3` |
+| `crowd_bbox_download_dir` | `"data/crowd_bbox"` | Where downloaded track CSVs are kept; reused by later runs |
+
+#### Stage 3: country law
+
+| Setting | Default | Meaning and allowed values |
+| --- | --- | --- |
+| `jaywalking_law_rules` | `"configs/jaywalking_rules.json"` | Rule sets built from the PDF by `scripts/law/build_jaywalking_rules.py` |
+| `jaywalking_law_model` | `null` | Hugging Face model for stage 3; `null` uses `vlm_model` |
+| `jaywalking_law_country` | `null` | Country for runs without location metadata (JAAD): ISO alpha-3 code or name, for example `"CAN"`, `"Ukraine"`. CROWD segments always use their own `mapping.csv` country |
+| `jaywalking_law_state` | `null` | State or province with it (matters for the United States, for example `"TX"`) |
+| `jaywalking_law_locality` | `null` | City with it (for example `"New York"`) |
+
+### Method settings in `scripts/core/method.py`
+
+#### Tracking
+
+| Setting | Default | Meaning and allowed values |
+| --- | --- | --- |
 | `bbox_tracker` | `"configs/botsort.yaml"` | BoT-SORT tracker settings (2 s track buffer, ReID) |
 | `min_confidence` | `0.0` | Detection confidence passed to the tracker, 0 to 1. Stage 1 itself keeps boxes with confidence of at least 0.7, as crowd-city does |
 | `iou` | `0.7` | Non maximum suppression IoU threshold of the detector, 0 to 1 |
-| `device` | `null` | Tracking device: `null` (automatic), `"cpu"`, `"cuda"`, `"cuda:0"`, ... |
 
-### Crossing decision
+#### Crossing decision
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
@@ -193,7 +257,7 @@ Every entry of `default.config`. Paths are relative to the repository root unles
 | `crossing_rescue_min_first_stage` | `null` | Classifier mode only: also send first stage rejections with at least this probability to the VLM crossing check. Number 0 to 1, or `null` (off). Set together with `crossing_rescue_min_gate` |
 | `crossing_rescue_min_gate` | `null` | Minimum gate probability for a rescued track. Number 0 to 1, or `null` |
 
-### Classifier mode (`crossing_decision_mode: "classifier"`)
+#### Classifier mode (`crossing_decision_mode: "classifier"`)
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
@@ -220,7 +284,7 @@ Every entry of `default.config`. Paths are relative to the repository root unles
 | `crossing_gate_camera_motion` | `true` | Train and run the gate with camera compensated motion (BoT-SORT's GMC removed from the foot path). `true` or `false` |
 | `crossing_min_scene_x_range` | `0.2` | Classifier mode: minimum sideways motion relative to the scene, as a fraction of the image width; `null` disables the rule |
 
-### Rule detector and track features (`"rules"` and `"classifier"` modes)
+#### Rule detector and track features (`"rules"` and `"classifier"` modes)
 
 These settings describe the road corridor and the filters of this project's own rule detector, whose measurements are also features of the classifier. The `"crowd_city"` mode uses crowd-city's built-in values instead.
 
@@ -272,7 +336,7 @@ These settings describe the road corridor and the filters of this project's own 
 | `rider_similarity_threshold`, `rider_similarity_ratio`, `rider_min_motion_seconds`, `rider_motion_colocation_min` | `0.4`, `0.5`, `0.1`, `0.5` | Motion similarity test: person and vehicle moving in the same direction (cosine above the threshold) on enough frames also marks a rider |
 | `rider_short_shared_seconds`, `rider_short_similarity_ratio`, `rider_short_displacement` | `0.266667`, `0.8`, `0.12` | Stricter test for short overlaps |
 
-### Evidence images
+#### Evidence images
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
@@ -287,86 +351,51 @@ These settings describe the road corridor and the filters of this project's own 
 | `evidence_control_crop_bottom` | `0.78` | The control tiles cover the image above this height (fraction from the top) |
 | `evidence_control_crop_overlap` | `0.2` | Overlap between neighbouring control tiles, 0 to 1 |
 
-### VLM
+#### VLM
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
-| `vlm_model` | `"Qwen/Qwen3-VL-8B-Instruct"` | Hugging Face model for stage 2. Qwen2.5-VL, Qwen3-VL, Qwen3.5, and Gemma vision models are supported |
 | `vlm_prompt_mode` | `"zebra_light_v5"` | Infrastructure prompt: `"zebra_light_v5"` (current: infrastructure only, never judges the person), `"zebra_light_v1"` to `"zebra_light_v4"`, `"baseline_v3"`, `"focused_v5"` |
-| `vlm_device_map` | `"auto"` | Accelerate device placement: `"auto"`, `"cuda"`, `"cpu"` |
-| `vlm_torch_dtype` | `"auto"` | `"auto"`, `"bfloat16"`, `"float16"`, `"float32"` |
-| `vlm_attn_implementation` | `null` | `null` (default), `"sdpa"`, `"flash_attention_2"`, `"eager"` |
-| `vlm_cache_dir` | `null` | Hugging Face cache folder; `null` uses the normal cache |
-| `vlm_local_files_only` | `false` | `true` never downloads weights |
-| `vlm_min_pixels`, `vlm_max_pixels` | `200704`, `250880` | Pixel budget per image. 250880 keeps one call within 32 GB of VRAM; lower it on smaller GPUs (calls that spill into shared memory on Windows become tens of times slower) |
 | `vlm_max_new_tokens` | `300` | Longest answer |
 | `vlm_task_max_frames` | `4` | Moments sent per VLM call |
-| `vlm_quantization` | `null` | `"4bit"` loads larger models with bitsandbytes; `null` loads full precision |
 
-### Decision policy
+#### Decision policy
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
 | `permission_cues` | `["marked_crosswalk", "permissive_pedestrian_signal", "traffic_light"]` | Visible cues that make a crossing compliant. Any of `"marked_crosswalk"`, `"permissive_pedestrian_signal"`, `"traffic_light"`, `"authorised_crossing_sign"`, `"crossing_guard_permission"` |
 | `context_scope` | `"scene"` | `"scene"`: a cue seen for any crossing person in the clip counts for every crossing person. `"person"`: only that person's own evidence |
+| `context_scope_window_seconds` | `10.0` | Scene scope only joins crossings at most this many seconds apart (gap between their crossing intervals), so a CROWD segment of many minutes is not one scene. `null` joins the whole clip. On JAAD, 2, 5, and 10 s give the same 23 claims as `null` |
 | `strict_absence` | `true` | A claim needs every infrastructure answer (zebra, traffic light, signals, crossing sign, crossing guard) to be NO for every crossing person in the clip; any YES or UNCERTAIN gives `UNCERTAIN` |
 | `partial_visibility_uncertain` | `false` | `true` turns partial visibility with no visible permission into `UNCERTAIN` |
 | `prohibitive_signal_overrides_crosswalk` | `false` | `true` labels crossing on a red or "do not walk" signal as jaywalking even at a crosswalk. Off, because a red light means a traffic light is present |
 
-### Stage 3: country law
+#### JAAD evaluation
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
-| `jaywalking_law_rules` | `"configs/jaywalking_rules.json"` | Rule sets built from the PDF by `scripts/law/build_jaywalking_rules.py` |
-| `jaywalking_law_model` | `null` | Hugging Face model for stage 3; `null` uses `vlm_model` |
-| `jaywalking_law_country` | `null` | Country for runs without location metadata (JAAD): ISO alpha-3 code or name, for example `"CAN"`, `"Ukraine"`. CROWD segments always use their own `mapping.csv` country |
-| `jaywalking_law_state` | `null` | State or province with it (matters for the United States, for example `"TX"`) |
-| `jaywalking_law_locality` | `null` | City with it (for example `"New York"`) |
-
-### JAAD
-
-| Setting | Default | Meaning and allowed values |
-| --- | --- | --- |
-| `jaad_root` | `"data/JAAD"` | JAAD 2.0 folder (annotations and `JAAD_clips`) |
-| `jaad_benchmark_split` | `"train"` | Split tracked by `scripts/jaad/run_jaad_crossing_benchmark.py`: `"train"`, `"val"`, `"test"` |
-| `jaad_benchmark_results` | `"results/jaad_yolo11x"` | Saved JAAD tracks per split (and `camera_motion/`) |
 | `jaad_match_iou` | `0.5` | Box overlap that matches a track to a JAAD pedestrian, 0 to 1 |
 | `jaad_min_match_frames` | `5` | Frames that must overlap for a match |
 | `jaad_min_track_coverage` | `0.1` | Share of a JAAD pedestrian's frames a track must cover in the crossing benchmark, 0 to 1 |
-| `jaad_context_split` | `"train"` | Split of the VLM context benchmark: `"train"`, `"val"` (selection refuses `"test"`) |
-| `jaad_context_results` | `"results/jaad_context_audit_v5"` | Output folder of the context benchmark |
 | `jaad_context_sample_size` | `120` | Crossing events sampled for manual context labels; `0` uses all |
 | `jaad_context_sampling_seed` | `42` | Seed of that sample |
 
-### Labelled video evaluation (earlier designs)
+#### Labelled video evaluation (earlier designs)
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
-| `source_annotations` | `"annotations.csv"` | Human video labels (`video_id,filename,label`, label `Yes`, `No`, or other) |
-| `annotations` | `"annotations_with_splits.csv"` | The same labels with frozen splits, written by `scripts/evaluation/prepare_splits.py` |
-| `evaluation_split` | `"development"` | Split evaluated by `scripts/evaluation/run_evaluation.py`: `"development"`, `"validation"`, `"locked_test"` |
 | `split_seed` | `42` | Seed of the stratified split |
 | `development_fraction`, `validation_fraction`, `locked_test_fraction` | `0.6`, `0.2`, `0.2` | Split sizes; must add up to 1 |
 | `vlm_comparison_models` | `["Qwen/Qwen3-VL-8B-Instruct", "google/gemma-4-12B-it"]` | Models compared by `scripts/context/compare_jaad_context_models.py` |
 | `vlm_comparison_prompt_modes` | `["baseline_v3", "focused_v5"]` | Prompt modes compared |
-| `vlm_comparison_results` | `"results/jaad_vlm_comparison_v5"` | Output folder of the comparison |
 
-### CROWD
+#### CROWD
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
-| `mapping` | `"mapping.csv"` | CROWD mapping: source videos, segments, time of day, city, state, ISO country code |
-| `ftp_server` | `"https://files.mobility-squad.com/"` | CROWD file server; credentials come from `secret` |
-| `crowd_ftp_aliases` | `["tue4", "tue5"]` | Server folders searched for a video |
-| `crowd_results` | `"results/crowd_jaywalking"` | Output folder of `scripts/crowd/run_crowd_analysis.py` |
-| `crowd_resume` | `true` | Skip segments already processed |
-| `crowd_download_dir` | `"data/crowd_downloads"` | Where downloaded source videos are kept |
 | `crowd_download_timeout_seconds` | `20` | Server request timeout |
 | `crowd_download_max_pages` | `500` | Most server index pages crawled to find a video |
 | `crowd_trim_end_margin_seconds` | `1.0` | Seconds cut from the end of a segment (the mapping's end times can overrun the video) |
-| `crowd_delete_downloaded_base_videos` | `false` | Delete a source video once its segments are processed |
-| `crowd_keep_segment_videos` | `true` | Keep the cut segment videos |
-| `crowd_max_segments` | `0` | Process at most this many segments; `0` processes all |
 | `crowd_audit_random_seed`, `crowd_audit_per_stratum` | `42`, `50` | Seed and size per stratum of `audit_sample.csv`, the people sampled for a manual check |
 
 ## Outputs
@@ -382,7 +411,7 @@ evidence/<video>/person_<id>_transition_<start>_<end>/*.jpg
 jaywalking_law/         stage 3: verdicts.jsonl (with every prompt), verdicts.csv, summary.json
 ```
 
-A CROWD run (`crowd_results`) adds `per_video_results.csv`, `per_person_results.csv` (with the city, state, and country of each segment), `audit_sample.csv`, and `errors.csv`.
+A CROWD run (`crowd_results`) adds `per_video_results.csv`, `per_person_results.csv` (with the city, state, and country of each segment), `audit_sample.csv`, and `errors.csv`. Each `details/<segment>.json` records `tracks_source` (`precomputed_local`, `precomputed_cache`, `precomputed_ftp`, or `tracking`) and the track file used.
 
 ## Earlier designs
 
@@ -396,7 +425,7 @@ The current method replaced several designs. Their settings still work, and thei
 | crowd-city + VLM crossing check v1, with a Mask2Former segmentation veto | 9 of 9 | 8% | The veto blocked 11 correct claims to stop one: it mistook snow, slush, and glare for crosswalks and counted traffic lights anywhere in view |
 | **crowd-city + VLM crossing check v3, no veto (current)** | **23 of 23** | **20%** | |
 
-To rerun the tracking-only strict mode, set in `config`: `crossing_decision_mode` `"classifier"`, `tracking_model` `"yolo26x.pt"`, `min_confidence` `0.25`, `jaad_benchmark_results` `"results/jaad_v1_5"`, `crossing_classifier_model` `"results/jaad_crossing_classifier_v1/crossing_classifier.joblib"`, `crossing_gate_model` `"results/jaad_crossing_gate_v2/crossing_gate.joblib"`, `crossing_gate_camera_motion` `true`, `crossing_min_scene_x_range` `0.2`, `crossing_gate_min_precision` `0.95`, `crossing_vlm_check` `false`; then run `scripts/jaad/compute_jaad_camera_motion.py` once and `scripts/jaad/run_jaad_person_audit.py`. (The Mask2Former veto it used has been removed from the code.)
+To rerun the tracking-only strict mode, set `tracking_model` and `jaad_benchmark_results` in `config` and add the method overrides (the run logs each one): `crossing_decision_mode` `"classifier"`, `tracking_model` `"yolo26x.pt"`, `min_confidence` `0.25`, `jaad_benchmark_results` `"results/jaad_v1_5"`, `crossing_classifier_model` `"results/jaad_crossing_classifier_v1/crossing_classifier.joblib"`, `crossing_gate_model` `"results/jaad_crossing_gate_v2/crossing_gate.joblib"`, `crossing_gate_camera_motion` `true`, `crossing_min_scene_x_range` `0.2`, `crossing_gate_min_precision` `0.95`, `crossing_vlm_check` `false`; then run `scripts/jaad/compute_jaad_camera_motion.py` once and `scripts/jaad/run_jaad_person_audit.py`. (The Mask2Former veto it used has been removed from the code.)
 
 The first stage classifier alone, on the official JAAD test split (YOLO26x): track match recall 98.6%, crossing precision 87.7%, recall 81.8%, F1 84.6% (TP 157, TN 62, FP 22, FN 35).
 
@@ -406,7 +435,7 @@ The first stage classifier alone, on the official JAAD test split (YOLO26x): tra
 
 * **Recall.** About one in five eligible crossers is found. Stage 1 sees only bounding boxes and misses most crossings that do not pass through the middle of the image.
 * **Private property.** In stage 3 the VLM answered "public road" for all 23 JAAD claims, including 9 in JAAD parking lots, so private car parks are not yet excluded reliably.
-* **Designated crossings.** These are judged as marked crossings or signals. In some places (for example Ontario) an unmarked intersection is also a legal crossing.
+* **Designated crossings.** The rule sets judge these as marked crossings or signals, but in the United States and Canada the unmarked crosswalk of an intersection is a legal crossing too. `configs/jaywalking_rules.json` therefore adds a hand-written `supplementary` condition to these two countries (`USA-X1`, `CAN-X1`: crossing at an intersection along the sidewalk lines). It is not from the PDF, `build_jaywalking_rules.py` keeps it on a rebuild, and a YES makes the crossing condition (`USA-R5`, `CAN-R3`) NO, an UNKNOWN makes it UNKNOWN. Other countries may need the same; the law document should define this.
 * **Red light crossings** are out of scope: scenes with a traffic light are never claimed, so offenses such as `DEU-T2` cannot be found.
 * **The law document.** Distances to an available crossing are unspecified for 29 countries, there is no table of US states, and six countries have no conditions, so many claims there end as `INSUFFICIENT_EVIDENCE`.
 * **JAAD labels.** Some contradict each other or the images: per pedestrian attributes can say "designated, signalised" where the per frame annotations and the images show neither, and a traffic light in view is marked even when it is far from the crossing.
@@ -418,7 +447,7 @@ The first stage classifier alone, on the official JAAD test split (YOLO26x): tra
 ```text
 .
 ├── README.md, LICENSE, pyproject.toml, uv.lock
-├── default.config                # every setting, with the current method's values
+├── default.config                # user settings: paths, runs, models, CROWD server, logging
 ├── config                        # local copy of default.config (ignored by Git)
 ├── default.secret                # template for secret (CROWD file server credentials)
 ├── common.py                     # CROWD helpers: get_configs, get_secrets
@@ -429,7 +458,7 @@ The first stage classifier alone, on the official JAAD test split (YOLO26x): tra
 │   ├── botsort.yaml              # tracker settings
 │   └── jaywalking_rules.json     # 51 country rule sets, from the PDF
 ├── scripts/                      # all code, by topic: library modules and the scripts that run them
-│   ├── core/                     # config, models, pipeline (stages 1 and 2), policy, evidence, tracking, vlm (prompts)
+│   ├── core/                     # method (fixed settings), config, models, pipeline (stages 1 and 2), policy, evidence, tracking, vlm (prompts)
 │   ├── crossing/
 │   │   ├── crowd_city_detection.py       # crowd-city's crossing detector (unchanged copy)
 │   │   ├── crowd_city_crossing.py        # applies it to tracks (stage 1)

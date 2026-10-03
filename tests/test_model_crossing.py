@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import unittest
-from pathlib import Path
 
+from scripts.core.method import METHOD_SETTINGS
 from scripts.crowd.crowd_analysis import stratified_audit_sample
 from scripts.crossing.model_crossing import ModelCrossingDetector
 from scripts.core.models import BoundingBox, RejectionReason, TrackObservation
@@ -42,8 +41,7 @@ class _FakeGate:
 
 class ModelCrossingTests(unittest.TestCase):
     def setUp(self) -> None:
-        raw = json.loads(Path("default.config").read_text(encoding="utf-8"))
-        self.settings = {key: value for key, value in raw.items()}
+        self.settings = dict(METHOD_SETTINGS)
 
     def test_track_feature_extractor_produces_training_schema(self) -> None:
         observations = self._track(1, [0.10, 0.48, 0.90])

@@ -36,8 +36,12 @@ class _VLM:
 
     def evaluate_law(self, evidence, prompt):
         self.calls += 1
-        ids = re.findall(r"^([A-Z]{3}-[RT]\d+):", prompt, flags=re.M)
-        return {"verdicts": {key: "YES" for key in ids}, "evidence_summary": "all met"}
+        ids = re.findall(r"^([A-Z]{3}-[RTX]\d+):", prompt, flags=re.M)
+        # Supplementary X conditions (the intersection check) answer NO: a mid-block crossing.
+        return {
+            "verdicts": {key: "NO" if "-X" in key else "YES" for key in ids},
+            "evidence_summary": "all met",
+        }
 
 
 class LawStageTests(unittest.TestCase):

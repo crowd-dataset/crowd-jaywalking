@@ -68,10 +68,17 @@ class RuleSet:
     decision: str
     decision_text: str
     legal_basis: str
+    # Conditions added to the rule file by hand, not taken from the PDF. Each has an
+    # ``id``, a ``text`` for the VLM, and ``overrides``: {answer: {condition id: verdict}}.
+    supplementary: tuple[dict[str, Any], ...] = ()
 
     @property
     def condition_ids(self) -> list[str]:
         return [item["id"] for item in self.required + self.triggers]
+
+    @property
+    def supplementary_ids(self) -> list[str]:
+        return [item["id"] for item in self.supplementary]
 
 
 @dataclass(frozen=True)
@@ -83,7 +90,8 @@ class LawVerdict:
     label: LawLabel
     reason: str
     verdicts: dict[str, str]
-    # Where each verdict came from: "vlm", "pipeline", or "location".
+    # Where each verdict came from: "vlm", "pipeline", "location", or the ID of the
+    # supplementary condition that overrode it.
     verdict_sources: dict[str, str] = field(default_factory=dict)
     evidence_summary: str = ""
     legal_basis: str = ""
@@ -108,9 +116,12 @@ class RuleBook:
                 decision=entry["decision"],
                 decision_text=entry["decision_text"],
                 legal_basis=entry["legal_basis"],
+                supplementary=tuple(entry.get("supplementary", ())),
             )
             for iso, entry in payload["countries"].items()
         }
+        for rule in self.rules.values():
+            validate_supplementary(rule)
         self._names = {rule.name.upper(): iso for iso, rule in self.rules.items()}
 
     def resolve(self, country: str) -> str | None:
@@ -155,7 +166,53 @@ def prefilled_verdicts(rule: RuleSet, location: LawLocation) -> dict[str, tuple[
     return known
 
 
-def build_prompt(rule: RuleSet, location: LawLocation, open_ids: list[str]) -> str:
+def validate_supplementary(rule: RuleSet) -> None:
+    """A supplementary condition must have a new ID and override only real conditions."""
+
+    for item in rule.supplementary:
+        if not {"id", "text", "overrides"} <= set(item) or not isinstance(item["overrides"], dict):
+            raise ValueError(f"{rule.iso}: supplementary condition needs id, text, and overrides: {item}")
+        if item["id"] in rule.condition_ids or not item["id"].startswith(f"{rule.iso}-"):
+            raise ValueError(f"{rule.iso}: supplementary ID {item['id']} must be new and start with {rule.iso}-")
+        for answer, changes in item["overrides"].items():
+            if answer not in ("YES", "NO", "UNKNOWN") or not isinstance(changes, dict):
+                raise ValueError(f"{item['id']}: overrides are keyed by YES, NO, or UNKNOWN")
+            for target, verdict in changes.items():
+                if target not in rule.condition_ids or verdict not in ANSWERS:
+                    raise ValueError(f"{item['id']}: cannot set {target} to {verdict}")
+
+
+def asked_supplementary(rule: RuleSet, open_ids: list[str]) -> list[dict[str, Any]]:
+    """Supplementary conditions worth asking: those that override a condition still open."""
+
+    return [
+        item
+        for item in rule.supplementary
+        if any(target in open_ids for changes in item["overrides"].values() for target in changes)
+    ]
+
+
+def apply_supplementary(
+    item: dict[str, Any],
+    answer: str,
+    verdicts: dict[str, str],
+    sources: dict[str, str],
+) -> None:
+    """Apply one supplementary answer. A NO or N/A from the rule set is never replaced."""
+
+    for target, verdict in item["overrides"].get(answer, {}).items():
+        if verdicts.get(target) in ("NO", "N/A") or verdicts.get(target) == verdict:
+            continue
+        verdicts[target] = verdict
+        sources[target] = item["id"]
+
+
+def build_prompt(
+    rule: RuleSet,
+    location: LawLocation,
+    open_ids: list[str],
+    supplementary: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
+) -> str:
     """The VLM prompt for the conditions it must judge, in the rule set's own words."""
 
     place = ", ".join(part for part in (location.locality, location.state, rule.name) if part)
@@ -175,9 +232,13 @@ def build_prompt(rule: RuleSet, location: LawLocation, open_ids: list[str]) -> s
         "",
     ]
     lines += [f"{item['id']}: {item['text']}" for item in conditions]
+    if supplementary:
+        lines += ["", f"Also evaluate these conditions, which apply in {rule.name}:"]
+        lines += [f"{item['id']}: {item['text']}" for item in supplementary]
     if rule.not_specified:
         lines += ["", "Not specified by the rule set, do not infer:"] + [f"- {text}" for text in rule.not_specified]
-    example = ", ".join(f'"{condition_id}": "YES|NO|UNKNOWN"' for condition_id in open_ids)
+    asked = open_ids + [item["id"] for item in supplementary]
+    example = ", ".join(f'"{condition_id}": "YES|NO|UNKNOWN"' for condition_id in asked)
     lines += [
         "",
         "Return one JSON object with exactly these keys:",
@@ -257,23 +318,33 @@ class JaywalkingLawJudge:
         verdicts = {key: answer for key, (answer, _) in known.items()}
         sources = {key: source for key, (_, source) in known.items()}
         summary = ""
+        supplementary: dict[str, str] = {}
         if rule.decision in ("all_required", "required_and_any_trigger") and open_ids:
-            answers, summary = parse_verdicts(ask_vlm(build_prompt(rule, location, open_ids)), open_ids)
-            texts = {item["id"]: item["text"] for item in rule.required + rule.triggers}
+            extra = asked_supplementary(rule, open_ids)
+            asked = open_ids + [item["id"] for item in extra]
+            answers, summary = parse_verdicts(ask_vlm(build_prompt(rule, location, open_ids, extra)), asked)
+            texts = {item["id"]: item["text"] for item in rule.required + rule.triggers + tuple(extra)}
             # N/A only where the condition itself is a branch that allows it.
             answers = {
                 key: ("UNKNOWN" if value == "N/A" and "N/A" not in texts[key] else value)
                 for key, value in answers.items()
             }
+            supplementary = {item["id"]: answers.pop(item["id"]) for item in extra}
             verdicts.update(answers)
             sources.update({key: "vlm" for key in answers})
+            for item in extra:
+                apply_supplementary(item, supplementary[item["id"]], verdicts, sources)
+            sources.update({key: "vlm" for key in supplementary})
         label, reason = decide(rule, verdicts)
         return LawVerdict(
             country=rule.iso,
             country_name=rule.name,
             label=label,
             reason=reason,
-            verdicts={key: verdicts[key] for key in rule.condition_ids if key in verdicts},
+            verdicts={
+                **{key: verdicts[key] for key in rule.condition_ids if key in verdicts},
+                **supplementary,
+            },
             verdict_sources=sources,
             evidence_summary=summary,
             legal_basis=rule.legal_basis,

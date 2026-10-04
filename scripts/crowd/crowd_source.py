@@ -91,6 +91,9 @@ class CrowdSegment:
     end_second: int
     time_of_day: str
     metadata: dict[str, str]
+    # CROWD's code for what the camera was mounted on (0 car, 1 bus, 2 truck, 3 two-wheeler,
+    # 4 bicycle, ...); None when the mapping has no usable value for this segment.
+    vehicle_type: int | None = None
 
     @property
     def video_key(self) -> str:
@@ -106,6 +109,7 @@ class CrowdSegment:
             "end_second": self.end_second,
             "time_of_day": self.time_of_day,
             "metadata": dict(self.metadata),
+            "vehicle_type": self.vehicle_type,
         }
 
 
@@ -193,6 +197,41 @@ def _per_video_lists(
     return output
 
 
+def _vehicle_code(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        return None
+    try:
+        return int(str(value).strip())
+    except ValueError:
+        return None
+
+
+def _vehicle_codes(value: str, segment_counts: list[int]) -> list[list[int | None]]:
+    """One vehicle type code per segment of each video.
+
+    CROWD stores one code per video (``[0, 4]``); a nested list gives one code per
+    segment, like ``time_of_day``. Anything else leaves the segments without a type.
+    """
+
+    unknown: list[list[int | None]] = [[None] * count for count in segment_counts]
+    try:
+        parsed = ast.literal_eval(str(value))
+    except (SyntaxError, ValueError):
+        return unknown
+    if isinstance(parsed, int) and not isinstance(parsed, bool):
+        parsed = [parsed]
+    if not isinstance(parsed, (list, tuple)) or len(parsed) != len(segment_counts):
+        return unknown
+    codes: list[list[int | None]] = []
+    for item, count in zip(parsed, segment_counts):
+        if isinstance(item, (list, tuple)):
+            group = [_vehicle_code(entry) for entry in item]
+            codes.append(group if len(group) == count else [None] * count)
+        else:
+            codes.append([_vehicle_code(item)] * count)
+    return codes
+
+
 def load_crowd_mapping(path: Path) -> list[CrowdSegment]:
     """Read the official CROWD nested mapping format and deduplicate intervals."""
 
@@ -227,16 +266,20 @@ def load_crowd_mapping(path: Path) -> list[CrowdSegment]:
                 if key not in required and value is not None and str(value).strip()
             }
 
-            for video_id, start_group, end_group, time_group in zip(
-                videos, starts, ends, times
+            vehicles = _vehicle_codes(
+                row.get("vehicle_type", ""), [len(group) for group in starts]
+            )
+
+            for video_id, start_group, end_group, time_group, vehicle_group in zip(
+                videos, starts, ends, times, vehicles
             ):
                 if not (len(start_group) == len(end_group) == len(time_group)):
                     raise MappingFormatError(
                         f"Mapping row {row_number} has unequal interval list lengths "
                         f"for video {video_id}."
                     )
-                for raw_start, raw_end, raw_time in zip(
-                    start_group, end_group, time_group
+                for raw_start, raw_end, raw_time, vehicle_type in zip(
+                    start_group, end_group, time_group, vehicle_group
                 ):
                     try:
                         start = int(raw_start)
@@ -262,6 +305,7 @@ def load_crowd_mapping(path: Path) -> list[CrowdSegment]:
                             end_second=end,
                             time_of_day=time_of_day,
                             metadata=dict(metadata),
+                            vehicle_type=vehicle_type,
                         )
                     )
     return segments

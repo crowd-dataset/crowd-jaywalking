@@ -46,6 +46,8 @@ Each stage answers one question, and a claim needs every stage to agree. Any dou
    * **Infrastructure check** (prompt `zebra_light_v5`): is there a zebra crossing, a traffic light, or a pedestrian crossing sign? This prompt never judges the person. A fixed policy then requires every infrastructure answer to be NO, for this person and for every other crossing person in the clip.
 3. **Stage 3: the law.** Whether such a crossing is jaywalking depends on the country. A separate step (`scripts/law/run_jaywalking_law.py`) retrieves the rule set of the video's country from `Global_Jaywalking_Laws.pdf` (51 countries), asks the VLM YES, NO, or UNKNOWN on each numbered condition (plus any hand-added `supplementary` condition of that country, see [Limitations](#limitations)), and computes the label from the rule set's decision rule. The model never chooses the label.
 
+After a run, an optional **approach review** (`scripts/review/run_approach_review.py`) looks at frames from a few seconds before each claimed crossing and flags a zebra crossing on the road ahead that the crossing window itself misses. It is a flag for a manual look, not a veto: nothing is dropped.
+
 ## What the VLM sees
 
 For every accepted crossing, six moments are sampled from the crossing itself plus half a second either side. Each moment is turned into several views, so that small markings, signals, and signs are visible at near full resolution. Each VLM call sees four of the six moments.
@@ -136,6 +138,7 @@ Edit `config` for paths and runs. When `default.config` gains settings, add them
 
 * **JAAD**: `.\scripts\jaad\download_jaad.ps1` downloads the JAAD 2.0 annotations and all 346 clips into `data/JAAD`.
 * **CROWD**: `mapping.csv` lists every CROWD source video, its segments, city, state, and country. Videos are taken from the `videos` folders or downloaded from the file server into `crowd_download_dir`.
+* **CROWD footage**: only segments filmed from a car are processed (`crowd_vehicle_types`, default `[0]`). That is 83,549 of the 90,078 mapped segments, and in the Netherlands 962 of 1,682 (227 of 548 hours), because 40% of the Dutch footage is filmed from a bicycle.
 * **CROWD tracks**: by default (`crowd_tracks_source` `"precomputed"`) the run uses the YOLO11x + BoT-SORT tracks CROWD has already computed, one `<video_id>_<start_second>_<fps>.csv` per segment in its `bbox` folder (`/media/salam/crowd-tue-3/pedestrians_in-youtube/data/bbox`). They are read from `crowd_bbox_dirs` when that folder is mounted, otherwise downloaded from the same file server as the videos (`crowd_bbox_ftp_folder` below each of `crowd_bbox_ftp_aliases`) into `crowd_bbox_download_dir`. A segment without a track file is recorded in `errors.csv` (stage `tracks`), not tracked again. The videos are still needed for the evidence images.
 * **Jaywalking laws**: `data/Global_Jaywalking_Laws.pdf`, converted into `configs/jaywalking_rules.json` (committed).
 
@@ -148,6 +151,7 @@ Edit `config` for paths and runs. When `default.config` gains settings, add them
 | Stages 1 and 2 on JAAD, with the audit | `uv run python -u .\scripts\jaad\run_jaad_person_audit.py` | Split from `jaad_audit_split`; resumes after an interruption |
 | Stages 1 and 2 on CROWD | `uv run python -u .\scripts\crowd\run_crowd_analysis.py` | `crowd_max_segments` or `crowd_video_id` limit the run |
 | Stage 3 (law) | `uv run python .\scripts\law\run_jaywalking_law.py <results folder>` | CROWD takes the country from `mapping.csv`; for JAAD add `--country CAN` (repeatable) |
+| Approach review | `uv run python .\scripts\review\run_approach_review.py <results folder>` | After a run, before or after stage 3: flags claims with a zebra crossing on the road ahead in the seconds before the crossing, for a manual look. Changes nothing; see [Outputs](#outputs) |
 | One video | `uv run python .\scripts\evaluation\run_one_video.py` | Set `smoke_test_video` first |
 | Rebuild the law rules | `uv run python .\scripts\law\build_jaywalking_rules.py data\Global_Jaywalking_Laws.pdf configs\jaywalking_rules.json` | After an updated PDF; then rerun stage 3 only. Needs `pdftotext` (poppler) |
 | README figures | `uv run python .\scripts\docs\make_readme_figures.py` | From the evidence of the configured `results` run |
@@ -179,6 +183,7 @@ Settings live in two places. Paths are relative to the repository root unless ab
 | `smoke_test_video` | `""` | Video path for `scripts/evaluation/run_one_video.py` |
 | `crowd_video_id` | `""` | Process only this CROWD source video ID; `""` processes all |
 | `crowd_max_segments` | `0` | Process at most this many segments; `0` processes all |
+| `crowd_vehicle_types` | `[0]` | CROWD vehicle type codes to process, from the `vehicle_type` column of `mapping.csv`: `0` car, `1` bus, `2` truck, `3` two-wheeler, `4` bicycle, `5` automated car, `6` electric scooter, `7` monowheel, `8` emergency vehicle. The default keeps car footage only, because the method looks down the road the camera car drives on. `null` processes every type. Applied before `crowd_max_segments`; segments without a type in the mapping are left out |
 
 #### Paths
 
@@ -336,6 +341,15 @@ These settings describe the road corridor and the filters of this project's own 
 | `rider_similarity_threshold`, `rider_similarity_ratio`, `rider_min_motion_seconds`, `rider_motion_colocation_min` | `0.4`, `0.5`, `0.1`, `0.5` | Motion similarity test: person and vehicle moving in the same direction (cosine above the threshold) on enough frames also marks a rider |
 | `rider_short_shared_seconds`, `rider_short_similarity_ratio`, `rider_short_displacement` | `0.266667`, `0.8`, `0.12` | Stricter test for short overlaps |
 
+#### Approach review
+
+| Setting | Default | Meaning and allowed values |
+| --- | --- | --- |
+| `approach_review_seconds` | `6.0` | How many seconds before the crossing the first frame is taken. The window never starts before the first frame of the video |
+| `approach_review_end_seconds` | `0.5` | Seconds before the crossing at which the last frame is taken; must be below `approach_review_seconds` |
+| `approach_review_frames` | `4` | Moments sampled between the two, each sent as a full scene and a road ahead view |
+| `approach_review_crop_bottom` | `0.12` | Share of the frame height cut off at the bottom, where a dashcam shows the car's own bonnet and its reflections. At least 0 and below 0.5 |
+
 #### Evidence images
 
 | Setting | Default | Meaning and allowed values |
@@ -409,6 +423,8 @@ details/<video>.json    stage 1 candidates, VLM crossing checks, VLM context, de
 tracking/<video>.csv    the tracks used
 evidence/<video>/person_<id>_transition_<start>_<end>/*.jpg
 jaywalking_law/         stage 3: verdicts.jsonl (with every prompt), verdicts.csv, summary.json
+approach_review/        flags.csv (one row per claim: flag ZEBRA_AHEAD, UNCLEAR, CLEAR, or NO_VIDEO, the video time,
+                        and the VLM's sentence), flags.jsonl, summary.json (with the claims to review), frames/
 ```
 
 A CROWD run (`crowd_results`) adds `per_video_results.csv`, `per_person_results.csv` (with the city, state, and country of each segment), `audit_sample.csv`, and `errors.csv`. Each `details/<segment>.json` records `tracks_source` (`precomputed_local`, `precomputed_cache`, `precomputed_ftp`, or `tracking`) and the track file used.
@@ -435,7 +451,10 @@ The first stage classifier alone, on the official JAAD test split (YOLO26x): tra
 
 * **Recall.** About one in five eligible crossers is found. Stage 1 sees only bounding boxes and misses most crossings that do not pass through the middle of the image.
 * **Private property.** In stage 3 the VLM answered "public road" for all 23 JAAD claims, including 9 in JAAD parking lots, so private car parks are not yet excluded reliably.
-* **Designated crossings.** The rule sets judge these as marked crossings or signals, but in the United States and Canada the unmarked crosswalk of an intersection is a legal crossing too. `configs/jaywalking_rules.json` therefore adds a hand-written `supplementary` condition to these two countries (`USA-X1`, `CAN-X1`: crossing at an intersection along the sidewalk lines). It is not from the PDF, `build_jaywalking_rules.py` keeps it on a rebuild, and a YES makes the crossing condition (`USA-R5`, `CAN-R3`) NO, an UNKNOWN makes it UNKNOWN. Other countries may need the same; the law document should define this.
+* **Designated crossings.** The rule sets judge these as marked crossings or signals, but in the United States and Canada the unmarked crosswalk of an intersection is a legal crossing too. `configs/jaywalking_rules.json` therefore adds a hand-written `supplementary` condition to these two countries (`USA-X1`, `CAN-X1`: crossing at an intersection along the sidewalk lines). It is not from the PDF, `build_jaywalking_rules.py` keeps it on a rebuild, and a YES makes the crossing condition (`USA-R5`, `CAN-R3`) NO, an UNKNOWN makes it UNKNOWN. Other countries may need the same; the law document should define this. Neither check works yet: the VLM answered `USA-X1`/`CAN-X1` NO for all 23 JAAD claims, although JAAD marks every one as an intersection.
+* **Zebra crossing seen only before the crossing.** A person on CROWD footage (Moscow, `2JKoQh0Lv5I` at 2:06) was claimed although they cross on a zebra crossing, confirmed by hand. The camera car had stopped at the stripes: they are visible at the bottom of the frame as the car approaches, but the infrastructure check only sees moments within half a second of the crossing, where they are out of frame or edge-on. The approach review flags such claims for a manual look. It is a flag, not a veto, because the VLM can also see stripes that are not there: on JAAD it flagged 1 of the 23 correct claims (`video_0166`, a painted kerb read as stripes), and no prompt wording tried removed that without also missing the Moscow zebra. Claims reviewed by hand so far on CROWD: San Antonio (stage 3 label wrong) and this one (stage 2 claim wrong).
+* **Camera type.** The method assumes a camera in a car. On footage from a bicycle, the first Dutch run claimed four people in Eindhoven's pedestrian centre who were not crossing a road; `crowd_vehicle_types` now keeps such footage out.
+* **Pedestrian-only areas.** The crossing check (`v3`) can pass people walking in car-free squares as road crossings, and on car footage the shared brick area at Amsterdam Centraal is a borderline case. Its prompt is left unchanged because it works on JAAD. A rule-file condition that asks the VLM whether the person is on a road that vehicles use was tried for the Netherlands and removed: it answered YES for all of the first 10 Dutch claims, including four people on a pedestrian plaza (bicycle footage).
 * **Red light crossings** are out of scope: scenes with a traffic light are never claimed, so offenses such as `DEU-T2` cannot be found.
 * **The law document.** Distances to an available crossing are unspecified for 29 countries, there is no table of US states, and six countries have no conditions, so many claims there end as `INSUFFICIENT_EVIDENCE`.
 * **JAAD labels.** Some contradict each other or the images: per pedestrian attributes can say "designated, signalised" where the per frame annotations and the images show neither, and a traffic light in view is marked even when it is far from the crossing.
@@ -478,6 +497,9 @@ The first stage classifier alone, on the official JAAD test split (YOLO26x): tra
 │   │   ├── jaywalking_law.py, law_stage.py  # stage 3: rule sets, decision rules, runs over saved claims
 │   │   ├── build_jaywalking_rules.py     # PDF -> configs/jaywalking_rules.json
 │   │   └── run_jaywalking_law.py         # stage 3 on the saved claims of a run
+│   ├── review/
+│   │   ├── approach_review.py            # frames from before the crossing, zebra flag per claim
+│   │   └── run_approach_review.py        # the approach review on the saved claims of a run
 │   ├── context/                  # earlier designs: VLM context benchmark and model comparison
 │   ├── evaluation/               # labelled video evaluation, its diagnosis, and run_one_video.py
 │   └── docs/make_readme_figures.py       # the figures in docs/images

@@ -101,6 +101,35 @@ class CrowdSourceTests(unittest.TestCase):
         self.assertEqual(segments[2].video_id, "-def")
         self.assertEqual(segments[2].metadata["iso3"], "NLD")
 
+    def test_vehicle_type_is_read_per_video_or_per_segment(self) -> None:
+        rows = [
+            # One code per video, as CROWD stores it: both segments of the first video share it.
+            ("A", "[abc,def]", "[[0, 10], [0]]", "[[5, 15], [9]]", "[[0, 0], [0]]", "[0,4]"),
+            # A nested list gives one code per segment.
+            ("B", "[ghi]", "[[0, 10]]", "[[5, 15]]", "[[0, 0]]", "[[0, 1]]"),
+            # Unusable values leave the segments without a type.
+            ("C", "[jkl]", "[[0]]", "[[5]]", "[[0]]", "[x]"),
+        ]
+
+        def mapping(with_column: bool) -> str:
+            head = "iso3,city,videos,start_time,end_time,time_of_day" + (",vehicle_type" if with_column else "")
+            lines = [",".join(["NLD"] + [f'"{value}"' for value in row[:5] + (row[5:] if with_column else ())])
+                     for row in rows]
+            return "\n".join([head] + lines) + "\n"
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "mapping.csv"
+            path.write_text(mapping(True), encoding="utf-8")
+            with_types = {(s.video_id, s.start_second): s.vehicle_type for s in load_crowd_mapping(path)}
+            path.write_text(mapping(False), encoding="utf-8")
+            without_column = {s.vehicle_type for s in load_crowd_mapping(path)}
+
+        self.assertEqual(
+            with_types,
+            {("abc", 0): 0, ("abc", 10): 0, ("def", 0): 4, ("ghi", 0): 0, ("ghi", 10): 1, ("jkl", 0): None},
+        )
+        self.assertEqual(without_column, {None})
+
     def test_direct_download_uses_basic_auth_and_atomic_destination(self) -> None:
         url = "https://files.example/v/tue4/files/example.mp4"
         session = _FakeSession({url: (200, b"video-bytes")})

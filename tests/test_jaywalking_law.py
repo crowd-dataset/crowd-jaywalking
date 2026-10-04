@@ -125,6 +125,36 @@ class JudgeTests(unittest.TestCase):
         verdict = self.judge.judge(texas, self._vlm({"USA-R1": "YES", "USA-R5": "NO", "USA-X1": "UNKNOWN"}))
         self.assertEqual((verdict.label, verdict.verdict_sources["USA-R5"]), (LawLabel.NOT_JAYWALKING, "vlm"))
 
+    def test_supplementary_condition_can_override_the_pipeline_roadway_condition(self):
+        import json
+        import tempfile
+
+        # A test-only condition on the Netherlands: no shipped rule set uses this override.
+        payload = json.loads(RULES.read_text(encoding="utf-8"))
+        payload["countries"]["NLD"]["supplementary"] = [{
+            "id": "NLD-X9",
+            "text": "The pedestrian is on a road that vehicles use.",
+            "overrides": {"NO": {"NLD-R2": "NO"}, "UNKNOWN": {"NLD-R2": "UNKNOWN"}},
+        }]
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "rules.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            judge = JaywalkingLawJudge(path)
+        base = {"NLD-R1": "YES", "NLD-R3": "YES", "NLD-R4": "YES"}
+        # On a road that vehicles use: the rule set decides as before.
+        verdict = judge.judge(LawLocation("NLD"), self._vlm({**base, "NLD-X9": "YES"}))
+        self.assertEqual(verdict.label, LawLabel.JAYWALKING)
+        self.assertEqual(verdict.verdict_sources["NLD-R2"], "pipeline")
+        self.assertIn("NLD-X9: The pedestrian is on a road that vehicles use.", self.asked[-1])
+        # Not on a road: the roadway condition fails, whatever the other answers.
+        verdict = judge.judge(LawLocation("NLD"), self._vlm({**base, "NLD-X9": "NO"}))
+        self.assertEqual((verdict.label, verdict.verdicts["NLD-R2"]), (LawLabel.NOT_JAYWALKING, "NO"))
+        self.assertEqual(verdict.verdict_sources["NLD-R2"], "NLD-X9")
+        self.assertEqual(verdict.reason, "Required condition not met: NLD-R2")
+        # Cannot tell: no label.
+        verdict = judge.judge(LawLocation("NLD"), self._vlm({**base, "NLD-X9": "UNKNOWN"}))
+        self.assertEqual((verdict.label, verdict.verdicts["NLD-R2"]), (LawLabel.INSUFFICIENT_EVIDENCE, "UNKNOWN"))
+
     def test_countries_without_supplementary_conditions_are_unchanged(self):
         self.judge.judge(LawLocation("AUS"), self._vlm({"AUS-R1": "YES", "AUS-R3": "YES", "AUS-R4": "YES"}))
         self.assertNotIn("Also evaluate", self.asked[-1])

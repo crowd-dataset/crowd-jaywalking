@@ -40,6 +40,7 @@ SOURCE_FIELDS = (
     "end_second",
     "effective_end_second",
     "time_of_day",
+    "vehicle_type",
     "mapping_row_number",
     "continent",
     "country",
@@ -146,6 +147,7 @@ def _source_row(payload: dict[str, Any], result: dict[str, Any]) -> dict[str, An
             "effective_end_second", segment["end_second"]
         ),
         "time_of_day": segment["time_of_day"],
+        "vehicle_type": segment.get("vehicle_type", ""),
         "mapping_row_number": segment["row_number"],
         "continent": _metadata_value(segment, "continent"),
         "country": _metadata_value(segment, "country"),
@@ -337,6 +339,24 @@ class CrowdAnalysisRunner:
                 for item in segments
                 if item.video_id.removesuffix(".mp4") == selected_video
             ]
+        vehicle_types = self.settings["vehicle_types"]
+        if vehicle_types is not None:
+            # The method looks down the road the camera car drives on, so footage filmed from
+            # a bicycle, bus or two-wheeler is left out: on a bicycle, pedestrian squares and
+            # shared streets pass the crossing check as roads.
+            if segments and all(item.vehicle_type is None for item in segments):
+                raise ValueError(
+                    "The mapping has no vehicle_type values; set crowd_vehicle_types to null to process every type."
+                )
+            kept = [item for item in segments if item.vehicle_type in vehicle_types]
+            logger.info(
+                "crowd_vehicle_types {}: kept {} of {} segments ({} without a vehicle type)",
+                vehicle_types,
+                len(kept),
+                len(segments),
+                sum(item.vehicle_type is None for item in segments),
+            )
+            segments = kept
         maximum = int(self.settings["max_segments"])
         return segments[:maximum] if maximum > 0 else segments
 
@@ -447,6 +467,7 @@ class CrowdAnalysisRunner:
             "file_server_origin": f"{server.scheme}://{server.netloc}",
             "file_server_aliases": list(self.settings["ftp_aliases"]),
             "tracks_source": self.settings["tracks_source"],
+            "vehicle_types": self.settings["vehicle_types"],
             "bbox_ftp_folder": self.settings["bbox_ftp_folder"],
             "trim_end_margin_seconds": self.settings["trim_end_margin_seconds"],
             "crossing_decision_mode": classifier["decision_mode"],

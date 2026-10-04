@@ -54,5 +54,34 @@ class PrecomputedTrackTests(unittest.TestCase):
             runner._downloader_instance.download_track_file.assert_not_called()
 
 
+def _selecting_runner(vehicle_types, max_segments=0):
+    runner = object.__new__(CrowdAnalysisRunner)
+    runner.config = mock.Mock()
+    runner.config.get.return_value = ""
+    runner.settings = {"vehicle_types": vehicle_types, "max_segments": max_segments}
+    return runner
+
+
+def _segments(*types):
+    return [CrowdSegment(index, f"v{index}", 0, 10, "0", {}, vehicle) for index, vehicle in enumerate(types)]
+
+
+class VehicleFilterTests(unittest.TestCase):
+    def test_only_the_listed_vehicle_types_are_kept(self) -> None:
+        segments = _segments(0, 4, None, 0, 1, 3)
+        kept = _selecting_runner([0])._select_segments(segments)
+        self.assertEqual([s.video_id for s in kept], ["v0", "v3"])
+        self.assertEqual(len(_selecting_runner([0, 1])._select_segments(segments)), 3)
+        # The filter comes before the segment cap, so the cap counts kept segments.
+        self.assertEqual([s.video_id for s in _selecting_runner([0], 1)._select_segments(segments)], ["v0"])
+        self.assertEqual([s.video_id for s in _selecting_runner([4], 1)._select_segments(segments)], ["v1"])
+
+    def test_null_keeps_every_type_and_a_mapping_without_types_is_an_error(self) -> None:
+        segments = _segments(0, 4, None)
+        self.assertEqual(len(_selecting_runner(None)._select_segments(segments)), 3)
+        with self.assertRaises(ValueError):
+            _selecting_runner([0])._select_segments(_segments(None, None))
+
+
 if __name__ == "__main__":
     unittest.main()

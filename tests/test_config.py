@@ -53,11 +53,40 @@ class ProjectConfigTests(unittest.TestCase):
         with project_root(self.template, active), self.assertRaises(KeyError):
             ProjectConfig.load()
 
+    def test_approach_review_settings(self) -> None:
+        settings = load_config(self.template).approach_review_settings()
+        self.assertEqual(settings, {"seconds": 6.0, "end_seconds": 0.5, "frames": 4, "crop_bottom": 0.12})
+        for invalid in (
+            {"approach_review_end_seconds": 6.0},
+            {"approach_review_end_seconds": -1.0},
+            {"approach_review_frames": 0},
+            {"approach_review_crop_bottom": 0.5},
+        ):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                load_config(dict(self.template, **invalid))
+        # The review runs after a run and changes no result, so it keeps the fingerprint.
+        base = load_config(self.template).fingerprint("v")
+        self.assertEqual(load_config(dict(self.template, approach_review_seconds=3.0)).fingerprint("v"), base)
+
+    def test_crowd_vehicle_types_default_to_cars(self) -> None:
+        self.assertEqual(load_config(self.template).crowd_settings()["vehicle_types"], [0])
+        mixed = load_config(dict(self.template, crowd_vehicle_types=[4, 0, 4]))
+        self.assertEqual(mixed.crowd_settings()["vehicle_types"], [0, 4])
+        self.assertIsNone(load_config(dict(self.template, crowd_vehicle_types=None)).crowd_settings()["vehicle_types"])
+        for invalid in ([], "0", [0, "1"], [True], [-1]):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                load_config(dict(self.template, crowd_vehicle_types=invalid))
+        # Choosing which footage to process does not change a result, so it keeps the fingerprint.
+        base = load_config(self.template).fingerprint("v")
+        self.assertEqual(load_config(dict(self.template, crowd_vehicle_types=[0, 4])).fingerprint("v"), base)
+
     def test_crowd_precomputed_track_settings(self) -> None:
         with project_root(self.template) as root:
             settings = ProjectConfig.load().crowd_settings()
             self.assertEqual(settings["bbox_download_dir"], (root / "data" / "crowd_bbox").resolve())
-        self.assertEqual(settings["bbox_dirs"][0].parts[-4:], ("crowd-tue-3", "pedestrians_in-youtube", "data", "bbox"))
+        self.assertEqual(
+            settings["bbox_dirs"][0].parts[-4:], ("crowd-tue-3", "pedestrians_in-youtube", "data", "bbox")
+        )
         self.assertEqual(settings["bbox_ftp_aliases"], ["data"])
 
         for invalid in (

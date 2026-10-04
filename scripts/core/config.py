@@ -113,7 +113,12 @@ RESULT_NEUTRAL_KEYS = (
     "crowd_resume",
     "crowd_video_id",
     "crowd_max_segments",
+    "crowd_vehicle_types",
     "jaad_video_id",
+    "approach_review_seconds",
+    "approach_review_end_seconds",
+    "approach_review_frames",
+    "approach_review_crop_bottom",
     "smoke_test_video",
     "crowd_download_dir",
     "crowd_bbox_dirs",
@@ -381,6 +386,23 @@ class ProjectConfig:
             "min_track_frames": int(value("crossing_classifier_min_track_frames")),
         }
 
+    def approach_review_settings(self) -> dict[str, Any]:
+        """Settings of the post run approach review (scripts/review)."""
+
+        settings = {
+            "seconds": float(self.get("approach_review_seconds")),
+            "end_seconds": float(self.get("approach_review_end_seconds")),
+            "frames": int(self.get("approach_review_frames")),
+            "crop_bottom": float(self.get("approach_review_crop_bottom")),
+        }
+        if not 0.0 <= settings["end_seconds"] < settings["seconds"]:
+            raise ValueError("approach_review_end_seconds must satisfy 0 <= end < approach_review_seconds")
+        if settings["frames"] < 1:
+            raise ValueError("approach_review_frames must be at least 1")
+        if not 0.0 <= settings["crop_bottom"] < 0.5:
+            raise ValueError("approach_review_crop_bottom must be at least 0 and below 0.5")
+        return settings
+
     def crowd_settings(self) -> dict[str, Any]:
         """Return batch execution and manual audit settings for CROWD."""
 
@@ -402,6 +424,7 @@ class ProjectConfig:
             ),
             "keep_segment_videos": bool(value("crowd_keep_segment_videos")),
             "max_segments": int(value("crowd_max_segments")),
+            "vehicle_types": self._vehicle_types(),
             "audit_random_seed": int(value("crowd_audit_random_seed")),
             "audit_per_stratum": int(value("crowd_audit_per_stratum")),
             "tracks_source": str(value("crowd_tracks_source")).strip().lower(),
@@ -415,6 +438,20 @@ class ProjectConfig:
             ],
             "bbox_download_dir": self.path("crowd_bbox_download_dir"),
         }
+
+    def _vehicle_types(self) -> list[int] | None:
+        """The CROWD vehicle type codes to process, or None for every type."""
+
+        value = self.get("crowd_vehicle_types")
+        if value is None:
+            return None
+        if (
+            not isinstance(value, list)
+            or not value
+            or any(isinstance(item, bool) or not isinstance(item, int) or item < 0 for item in value)
+        ):
+            raise ValueError("crowd_vehicle_types must be a non-empty list of codes such as [0], or null")
+        return sorted(set(value))
 
     def fingerprint(self, prompt_version: str) -> str:
         effective_config = dict(self.raw)
@@ -658,6 +695,8 @@ class ProjectConfig:
             raise ValueError("crowd_download_max_pages must be positive")
         if crowd["trim_end_margin_seconds"] < 0.0:
             raise ValueError("crowd_trim_end_margin_seconds must be non-negative")
+        self._vehicle_types()
+        self.approach_review_settings()
         if crowd["max_segments"] < 0:
             raise ValueError("crowd_max_segments must be zero or positive")
         if crowd["audit_per_stratum"] < 1:

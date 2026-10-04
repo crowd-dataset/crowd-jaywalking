@@ -173,6 +173,13 @@ METHOD_SETTINGS: dict[str, Any] = {
     "vlm_comparison_models": ["Qwen/Qwen3-VL-8B-Instruct", "google/gemma-4-12B-it"],
     "vlm_comparison_prompt_modes": ["baseline_v3", "focused_v5"],
 
+    # Approach review (scripts/review): frames from this many seconds before a claimed crossing, down to
+    # the end offset, to see a zebra crossing the crossing window itself misses. Review flag only.
+    "approach_review_seconds": 6.0,
+    "approach_review_end_seconds": 0.5,
+    "approach_review_frames": 4,
+    "approach_review_crop_bottom": 0.12,
+
     # CROWD: the segment cut must match CROWD's own tracking (one second off the end), the
     # file server crawl limits, and the manual audit sample.
     "crowd_trim_end_margin_seconds": 1.0,

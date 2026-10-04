@@ -182,13 +182,18 @@ def validate_supplementary(rule: RuleSet) -> None:
                     raise ValueError(f"{item['id']}: cannot set {target} to {verdict}")
 
 
-def asked_supplementary(rule: RuleSet, open_ids: list[str]) -> list[dict[str, Any]]:
-    """Supplementary conditions worth asking: those that override a condition still open."""
+def asked_supplementary(rule: RuleSet, settable: list[str]) -> list[dict[str, Any]]:
+    """Supplementary conditions worth asking: those that can still change a condition.
+
+    ``settable`` are the conditions the VLM judges plus those the pipeline filled in
+    (such as R2, that the person crosses the roadway); a condition fixed by the
+    location can not be changed.
+    """
 
     return [
         item
         for item in rule.supplementary
-        if any(target in open_ids for changes in item["overrides"].values() for target in changes)
+        if any(target in settable for changes in item["overrides"].values() for target in changes)
     ]
 
 
@@ -320,7 +325,7 @@ class JaywalkingLawJudge:
         summary = ""
         supplementary: dict[str, str] = {}
         if rule.decision in ("all_required", "required_and_any_trigger") and open_ids:
-            extra = asked_supplementary(rule, open_ids)
+            extra = asked_supplementary(rule, open_ids + [key for key, source in sources.items() if source == "pipeline"])
             asked = open_ids + [item["id"] for item in extra]
             answers, summary = parse_verdicts(ask_vlm(build_prompt(rule, location, open_ids, extra)), asked)
             texts = {item["id"]: item["text"] for item in rule.required + rule.triggers + tuple(extra)}

@@ -792,6 +792,21 @@ class HuggingFaceContextClassifier:
             )
         )
 
+    def evaluate_approach(self, evidence: list[EvidenceImage], prompt: str) -> dict[str, Any]:
+        """Approach review: every given moment is sent, as full scene and road ahead views."""
+
+        if not evidence:
+            raise VLMError("No evidence images were supplied to the VLM")
+        self.ensure_ready()
+        return self._decode_payload(
+            self._classify_task(
+                sorted(evidence, key=lambda item: item.frame_index),
+                prompt,
+                ("full scene", "road ahead"),
+                "approach review",
+            )
+        )
+
     def _classify_task(
         self,
         evidence: list[EvidenceImage],
@@ -978,7 +993,15 @@ class HuggingFaceContextClassifier:
         try:
             payload = json.loads(cleaned)
         except json.JSONDecodeError as error:
-            raise VLMError(f"VLM returned invalid JSON: {content[:300]}") from error
+            # Some models put a stray word before the fence, such as "/thought```json": take the
+            # one JSON object out of the text. Clean answers never reach this branch.
+            start, end = cleaned.find("{"), cleaned.rfind("}")
+            if start == -1 or end <= start:
+                raise VLMError(f"VLM returned invalid JSON: {content[:300]}") from error
+            try:
+                payload = json.loads(cleaned[start : end + 1])
+            except json.JSONDecodeError:
+                raise VLMError(f"VLM returned invalid JSON: {content[:300]}") from error
         if not isinstance(payload, dict):
             raise VLMError(f"VLM returned a non-object response: {payload}")
         return payload

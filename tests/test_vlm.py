@@ -171,6 +171,18 @@ class VLMValidationTests(unittest.TestCase):
         )
         self.assertEqual(result["authorised_crossing_sign"], Ternary.NO)
 
+    def test_json_is_found_in_fenced_and_prefixed_answers(self) -> None:
+        decode = HuggingFaceContextClassifier._decode_payload
+        body = '{"crosses_road": "YES", "evidence_summary": "walks across"}'
+        expected = {"crosses_road": "YES", "evidence_summary": "walks across"}
+        self.assertEqual(decode(body), expected)
+        self.assertEqual(decode("```json\n" + body + "\n```"), expected)
+        # A stray word before the fence, as Gemma writes it sometimes.
+        self.assertEqual(decode("/thought```json\n" + body + "\n```"), expected)
+        for broken in ("no json here", "{not json}", "[1, 2]", "/thought```json\n```"):
+            with self.subTest(broken=broken), self.assertRaises(VLMError):
+                decode(broken)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -169,11 +169,16 @@ def prefilled_verdicts(rule: RuleSet, location: LawLocation) -> dict[str, tuple[
 def validate_supplementary(rule: RuleSet) -> None:
     """A supplementary condition must have a new ID and override only real conditions."""
 
+    for item in rule.required + rule.triggers:
+        if item.get("evidence") not in (None, "approach"):
+            raise ValueError(f"{item['id']}: evidence can only be 'approach'")
     for item in rule.supplementary:
         if not {"id", "text", "overrides"} <= set(item) or not isinstance(item["overrides"], dict):
             raise ValueError(f"{rule.iso}: supplementary condition needs id, text, and overrides: {item}")
         if item["id"] in rule.condition_ids or not item["id"].startswith(f"{rule.iso}-"):
             raise ValueError(f"{rule.iso}: supplementary ID {item['id']} must be new and start with {rule.iso}-")
+        if item.get("evidence") not in (None, "approach"):
+            raise ValueError(f"{item['id']}: evidence can only be 'approach'")
         for answer, changes in item["overrides"].items():
             if answer not in ("YES", "NO", "UNKNOWN") or not isinstance(changes, dict):
                 raise ValueError(f"{item['id']}: overrides are keyed by YES, NO, or UNKNOWN")
@@ -210,6 +215,35 @@ def apply_supplementary(
             continue
         verdicts[target] = verdict
         sources[target] = item["id"]
+
+
+APPROACH_INTRO = (
+    "You are inspecting the road ahead in chronological images from a vehicle dashcam, taken in the seconds "
+    "before a pedestrian crossed the road in front of the car. The images are FULL SCENE views and ROAD AHEAD "
+    "views of the same moments. The pedestrian crosses at the end of the sequence."
+)
+
+
+def build_approach_prompt(rule: RuleSet, location: LawLocation, items: list[dict[str, Any]]) -> str:
+    """Prompt for conditions judged on footage of the approach: the road ahead before the crossing."""
+
+    place = ", ".join(part for part in (location.locality, location.state, rule.name) if part)
+    asked = [item["id"] for item in items]
+    example = ", ".join(f'"{condition_id}": "YES|NO|UNKNOWN"' for condition_id in asked)
+    lines = [APPROACH_INTRO, "", f"The video was recorded in {place}. For each condition answer YES, NO, or UNKNOWN. "
+             "Answer UNKNOWN whenever the images do not show the evidence needed to decide.", ""]
+    lines += [f"{item['id']}: {item['text']}" for item in items]
+    lines += [
+        "",
+        "Return one JSON object with exactly these keys:",
+        "{",
+        f'  "verdicts": {{{example}}},',
+        '  "evidence_summary": "one or two short sentences citing condition IDs"',
+        "}",
+        "",
+        "Output JSON only.",
+    ]
+    return "\n".join(lines)
 
 
 def build_prompt(
@@ -309,8 +343,12 @@ class JaywalkingLawJudge:
     def __init__(self, rules_path: str | Path) -> None:
         self.book = RuleBook(rules_path)
 
-    def judge(self, location: LawLocation | None, ask_vlm) -> LawVerdict | None:
+    def judge(self, location: LawLocation | None, ask_vlm, ask_approach=None) -> LawVerdict | None:
         """Stage 3 for one person; ``ask_vlm(prompt)`` returns the parsed JSON payload.
+
+        Conditions (required, trigger or supplementary) marked ``"evidence": "approach"`` go to
+        ``ask_approach(prompt)``, which sees footage of the road before the crossing; without it they
+        are asked with the others.
 
         Returns None when the country has no rule set, so no legal label is given.
         """
@@ -326,8 +364,26 @@ class JaywalkingLawJudge:
         supplementary: dict[str, str] = {}
         if rule.decision in ("all_required", "required_and_any_trigger") and open_ids:
             extra = asked_supplementary(rule, open_ids + [key for key, source in sources.items() if source == "pipeline"])
-            asked = open_ids + [item["id"] for item in extra]
-            answers, summary = parse_verdicts(ask_vlm(build_prompt(rule, location, open_ids, extra)), asked)
+            items = {item["id"]: item for item in rule.required + rule.triggers + tuple(extra)}
+
+            def on_approach(condition_id: str) -> bool:
+                return ask_approach is not None and items[condition_id].get("evidence") == "approach"
+
+            main_ids = [key for key in open_ids if not on_approach(key)]
+            main_extra = [item for item in extra if not on_approach(item["id"])]
+            approach = [items[key] for key in open_ids if on_approach(key)] + [
+                item for item in extra if on_approach(item["id"])
+            ]
+            asked = main_ids + [item["id"] for item in main_extra]
+            answers, summary = {}, ""
+            if asked:
+                answers, summary = parse_verdicts(ask_vlm(build_prompt(rule, location, main_ids, main_extra)), asked)
+            if approach:
+                approach_answers, approach_summary = parse_verdicts(
+                    ask_approach(build_approach_prompt(rule, location, approach)), [item["id"] for item in approach]
+                )
+                answers.update(approach_answers)
+                summary = f"{summary} {approach_summary}".strip()
             texts = {item["id"]: item["text"] for item in rule.required + rule.triggers + tuple(extra)}
             # N/A only where the condition itself is a branch that allows it.
             answers = {

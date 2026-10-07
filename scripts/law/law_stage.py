@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from scripts.law.jaywalking_law import JaywalkingLawJudge, LawLocation
+from scripts.review.approach_review import ClaimRef, approach_evidence, find_claims as find_claim_refs
 from scripts.core.models import EvidenceImage
 from custom_logger import CustomLogger
 
@@ -35,6 +36,8 @@ class Claim:
     evidence: tuple[EvidenceImage, ...]
     # Location from CROWD mapping metadata; None when the run has none (JAAD).
     location: LawLocation | None
+    # Where to find the video of the claim, for conditions judged on footage of the approach.
+    approach: ClaimRef | None = None
 
     @property
     def key(self) -> str:
@@ -70,8 +73,9 @@ def find_claims(results_root: str | Path, evidence_from: str | Path | None = Non
     """
 
     root = Path(results_root)
+    refs = {ref.key: ref for ref in find_claim_refs(root)}
     for details in sorted(root.glob("**/details")):
-        if not details.is_dir() or "jaywalking_law" in details.parts:
+        if not details.is_dir() or {"jaywalking_law", "approach_review"} & set(details.parts):
             continue
         run_dir = details.parent
         relative = run_dir.relative_to(root)
@@ -91,12 +95,15 @@ def find_claims(results_root: str | Path, evidence_from: str | Path | None = Non
                 evidence = evidence_images(folder)
                 if not evidence:
                     raise FileNotFoundError(f"No evidence images for {path.stem} person {decision['person_id']}: {folder}")
+                source = str(relative).replace("\\", "/") or "."
+                video_id = payload.get("video_key") or payload.get("video_id") or path.stem
                 yield Claim(
-                    source=str(relative).replace("\\", "/") or ".",
-                    video_id=payload.get("video_key") or payload.get("video_id") or path.stem,
+                    source=source,
+                    video_id=video_id,
                     person_id=int(decision["person_id"]),
                     evidence=evidence,
                     location=payload_location(payload),
+                    approach=refs.get(f"{source}/{video_id}/{int(decision['person_id'])}"),
                 )
 
 
@@ -112,11 +119,13 @@ def run_law_stage(
     countries: list[str] | None = None,
     default_location: LawLocation | None = None,
     evidence_from: str | Path | None = None,
+    approach_settings: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Judge every claim and write ``<root>/jaywalking_law/``; already judged claims are skipped.
 
     Each claim uses its own location when it has one (CROWD); otherwise each of
-    ``countries`` is applied in turn, or ``default_location``.
+    ``countries`` is applied in turn, or ``default_location``. Conditions that need footage of the
+    approach (see ``approach_settings``) are judged on frames saved to ``jaywalking_law/approach_frames``.
     """
 
     output = Path(results_root) / "jaywalking_law"
@@ -148,7 +157,13 @@ def run_law_stage(
                     prompts.append(prompt)
                     return vlm.evaluate_law(list(claim.evidence), prompt)
 
-                verdict = judge.judge(location, ask)
+                def ask_approach(prompt: str, claim=claim) -> dict[str, Any]:
+                    prompts.append(prompt)
+                    evidence, _ = approach_evidence(claim.approach, approach_settings, output / "approach_frames")
+                    return vlm.evaluate_approach(evidence, prompt)
+
+                use_approach = approach_settings is not None and claim.approach is not None
+                verdict = judge.judge(location, ask, ask_approach if use_approach else None)
                 record = {
                     "key": claim.key,
                     "source": claim.source,
@@ -165,6 +180,7 @@ def run_law_stage(
                     "legal_basis": verdict.legal_basis if verdict else "",
                     "model": model_id if prompts else "",
                     "prompt": prompts[0] if prompts else "",
+                    "approach_prompt": prompts[1] if len(prompts) > 1 else "",
                 }
                 handle.write(json.dumps(record, ensure_ascii=False) + "\n")
                 handle.flush()

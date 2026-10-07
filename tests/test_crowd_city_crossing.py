@@ -28,6 +28,19 @@ class CrowdCityCrossingTests(unittest.TestCase):
         faint = person(2, np.linspace(0.15, 0.85, 90), confidence=0.5)
         self.assertEqual(detector.detect(faint, 30.0).valid_events, [])
 
+    def test_broken_track_of_a_walker_is_joined_into_one_crossing(self):
+        # One pedestrian crossing left to right, lost for half a second behind a car and
+        # picked up again under a new id: neither piece passes the strip on its own.
+        first = person(1, np.linspace(0.20, 0.47, 40))
+        second = [
+            TrackObservation(frame + 55, 2, 0, 0.9, obs.box)
+            for frame, obs in enumerate(person(2, np.linspace(0.52, 0.80, 40)))
+        ]
+        pieces = first + second
+        self.assertEqual(CrowdCityCrossingDetector({"track_joining": False}).detect(pieces, 30.0).valid_events, [])
+        joined = CrowdCityCrossingDetector().detect(pieces, 30.0)
+        self.assertEqual([event.person_id for event in joined.valid_events], [1])
+
 
 if __name__ == "__main__":
     unittest.main()

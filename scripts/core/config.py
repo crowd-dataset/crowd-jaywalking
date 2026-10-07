@@ -119,6 +119,10 @@ RESULT_NEUTRAL_KEYS = (
     "approach_review_end_seconds",
     "approach_review_frames",
     "approach_review_crop_bottom",
+    "law_approach_seconds",
+    "law_approach_end_seconds",
+    "law_approach_frames",
+    "law_approach_crop_bottom",
     "smoke_test_video",
     "crowd_download_dir",
     "crowd_bbox_dirs",
@@ -250,6 +254,7 @@ class ProjectConfig:
         self,
         model_id: str | None = None,
         prompt_mode: str | None = None,
+        quantization: str | None = None,
     ) -> dict[str, Any]:
         return {
             "model_id": model_id or self.get("vlm_model"),
@@ -267,7 +272,7 @@ class ProjectConfig:
             "max_new_tokens": self.get("vlm_max_new_tokens"),
             "task_max_frames": self.get("vlm_task_max_frames"),
             # "4bit" loads larger VLMs with bitsandbytes; null loads full precision.
-            "quantization": self.get("vlm_quantization"),
+            "quantization": quantization or self.get("vlm_quantization"),
         }
 
     def vlm_comparison_settings(self) -> dict[str, Any]:
@@ -320,10 +325,18 @@ class ProjectConfig:
         value = self.get
         return {
             "rules": self.path("jaywalking_law_rules"),
-            "vlm": self.vlm_settings(model_id=value("jaywalking_law_model")),
+            "vlm": self.vlm_settings(
+                model_id=value("jaywalking_law_model"), quantization=value("jaywalking_law_quantization")
+            ),
             "country": value("jaywalking_law_country"),
             "state": value("jaywalking_law_state"),
             "locality": value("jaywalking_law_locality"),
+            "approach": {
+                "seconds": float(value("law_approach_seconds")),
+                "end_seconds": float(value("law_approach_end_seconds")),
+                "frames": int(value("law_approach_frames")),
+                "crop_bottom": float(value("law_approach_crop_bottom")),
+            },
         }
 
     def crossing_gate_settings(self) -> dict[str, Any]:
@@ -385,6 +398,27 @@ class ProjectConfig:
             "fallback_to_rules": bool(value("crossing_classifier_fallback_to_rules")),
             "min_track_frames": int(value("crossing_classifier_min_track_frames")),
         }
+
+    def crowd_city_settings(self) -> dict[str, Any]:
+        """Settings of crowd-city's crossing decision (stage 1)."""
+
+        value = self.get
+        settings = {
+            "rule": str(value("crowd_city_crossing_rule")).strip().lower(),
+            "segmentation_model": str(value("crowd_city_segmentation_model")),
+            "segmentation_device": str(value("crowd_city_segmentation_device")),
+            "segmentation_batch_size": int(value("crowd_city_segmentation_batch_size")),
+            "segmentation_input_width": int(value("crowd_city_segmentation_input_width")),
+            "segmentation_input_height": int(value("crowd_city_segmentation_input_height")),
+            "segmentation_min_confidence": float(value("crowd_city_segmentation_min_confidence")),
+            "coarse_hz": float(value("crowd_city_segmentation_coarse_hz")),
+            "refine_hz": float(value("crowd_city_segmentation_refine_hz")),
+        }
+        if settings["rule"] not in {"road_crossing", "detector"}:
+            raise ValueError("crowd_city_crossing_rule must be one of: road_crossing, detector")
+        if settings["coarse_hz"] <= 0 or settings["refine_hz"] <= 0:
+            raise ValueError("crowd_city_segmentation_coarse_hz and _refine_hz must be positive")
+        return settings
 
     def approach_review_settings(self) -> dict[str, Any]:
         """Settings of the post run approach review (scripts/review)."""

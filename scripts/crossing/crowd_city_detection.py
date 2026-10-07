@@ -1,7 +1,7 @@
 """CROWD crossing detector, vendored from crowd-city.
 
 Copied unchanged from ``utils/crossing/detection.py`` of
-https://github.com/crowd-dataset/crowd-city (main, commit 0b8a164), except that
+https://github.com/crowd-dataset/crowd-city (main, commit 0b8a164; unchanged in 340875e), except that
 the mapping lookups are stubbed: callers pass the frame rate, and without the
 mapping's average height the rider filter runs as it does for every CROWD city
 with a known height. Re-copy the file when crowd-city changes its detector.

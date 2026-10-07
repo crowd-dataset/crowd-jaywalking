@@ -54,6 +54,7 @@ def main() -> None:
         countries=args.country,
         default_location=default,
         evidence_from=args.evidence_from,
+        approach_settings=settings["approach"],
     )
     logger.info("{}", json.dumps(summary, indent=2))
 

@@ -1237,7 +1237,63 @@
       "legal_basis": "Illegal (PDD (Traffic Rules) § 4)",
       "fines": "Administrative fines range from RUB 500 (crossing outside crosswalks) to RUB 1,500 (causing traffic obstructions).",
       "details": "Pedestrians must use crossings on public roads. State traffic safety inspectors (GIBDD) actively enforce pedestrian regulations in major urban areas.",
-      "source": "Consultant.ru Russia"
+      "source": "Consultant.ru Russia",
+      "supplementary": [
+        {
+          "id": "RUS-X1",
+          "text": "Looking at the road ahead in these images, taken in the seconds before the pedestrian crosses: the pedestrian crosses at an intersection, that is a place where another public road joins or crosses this road, with the kerb corners or the side road visible on at least one side of the crossing place. Answer NO when the crossing place is on a straight stretch between junctions, or at the exit of a yard, a car park, a petrol station, or a private driveway. Answer UNKNOWN when the road cannot be seen well enough to tell.",
+          "evidence": "approach",
+          "overrides": {
+            "YES": {
+              "RUS-T1": "NO"
+            },
+            "UNKNOWN": {
+              "RUS-T1": "UNKNOWN"
+            }
+          },
+          "legal_basis": "PDD 4.3: \"Пешеходы должны переходить дорогу по пешеходным переходам, подземным или надземным пешеходным переходам, а при их отсутствии - на перекрестках по линии тротуаров или обочин.\" PDD 1.2: \"Не считаются перекрестками места выезда с прилегающих территорий.\" Consultant.ru: PDD RF section 4 (https://www.consultant.ru/document/cons_doc_LAW_2709/1736bcf22f8e05f9d3db535f6d084651bad887a4/) and section 1 point 1.2 (https://www.consultant.ru/document/cons_doc_LAW_2709/5894b193fda5648afe1c1a5e70c028f25cd29099/); KoAP RF art. 12.29 part 1 (warning or RUB 500).",
+          "note": "Added by hand on 2026-10-04 from the Russian Traffic Rules, not from Global_Jaywalking_Laws.pdf, which gives one condition (RUS-T1, crosses outside a designated crossing) without the exceptions of point 4.3. Kept by build_jaywalking_rules.py. To be confirmed by the maintainer of the law document."
+        },
+        {
+          "id": "RUS-X2",
+          "text": "Looking at the road ahead in these images, taken in the seconds before the pedestrian crosses: a pedestrian crossing (zebra or traffic-light controlled) or an intersection of two roads is on this road within sight of the place where the pedestrian crosses, ahead of the camera car or just passed, near or far, not a yard exit. Answer NO only when the road is clearly visible in the images and no crossing and no junction with another road is anywhere in view; answer UNKNOWN when the road cannot be seen well enough to tell.",
+          "evidence": "approach",
+          "overrides": {
+            "NO": {
+              "RUS-T1": "NO"
+            },
+            "UNKNOWN": {
+              "RUS-T1": "UNKNOWN"
+            }
+          },
+          "legal_basis": "PDD 4.3: \"При отсутствии в зоне видимости перехода или перекрестка разрешается переходить дорогу под прямым углом к краю проезжей части на участках без разделительной полосы и ограждений там, где она хорошо просматривается в обе стороны.\" Crossing elsewhere is an offence only when a crossing or intersection is in sight. Consultant.ru: PDD RF section 4 (https://www.consultant.ru/document/cons_doc_LAW_2709/1736bcf22f8e05f9d3db535f6d084651bad887a4/) and section 1 point 1.2 (https://www.consultant.ru/document/cons_doc_LAW_2709/5894b193fda5648afe1c1a5e70c028f25cd29099/); KoAP RF art. 12.29 part 1 (warning or RUB 500).",
+          "note": "Added by hand on 2026-10-04 from the Russian Traffic Rules, not from Global_Jaywalking_Laws.pdf, which gives one condition (RUS-T1, crosses outside a designated crossing) without the exceptions of point 4.3. Kept by build_jaywalking_rules.py. To be confirmed by the maintainer of the law document. A NO makes the crossing lawful under point 4.3 (right angle crossing where nothing is in sight), provided the road is clear and there is no median or fence; the VLM sees only the seconds around the crossing, so the reviewer confirms it from the clip."
+        },
+        {
+          "id": "RUS-X3",
+          "text": "Looking at the road ahead in these images, taken in the seconds before the pedestrian crosses: the pedestrian is not crossing a road used by through traffic. Answer YES when the place is a yard or courtyard between buildings, a car park (among rows or groups of parked cars), a petrol station forecourt, a pedestrian square or plaza, or a pavement or path where cars drive only slowly to park or enter a property. Answer NO when the person crosses a street with lane markings or moving traffic that is not turning into a property.",
+          "evidence": "approach",
+          "overrides": {
+            "YES": {
+              "RUS-R2": "NO"
+            }
+          },
+          "legal_basis": "PDD 1.2: a car park is an adjacent territory, not a carriageway (\"проезжая часть\"), and the crossing rules of section 4 concern crossing a road. Consultant.ru: PDD RF section 4 (https://www.consultant.ru/document/cons_doc_LAW_2709/1736bcf22f8e05f9d3db535f6d084651bad887a4/) and section 1 point 1.2 (https://www.consultant.ru/document/cons_doc_LAW_2709/5894b193fda5648afe1c1a5e70c028f25cd29099/); KoAP RF art. 12.29 part 1 (warning or RUB 500).",
+          "note": "Added by hand on 2026-10-04 from the Russian Traffic Rules, not from Global_Jaywalking_Laws.pdf, which gives one condition (RUS-T1, crosses outside a designated crossing) without the exceptions of point 4.3. Kept by build_jaywalking_rules.py. To be confirmed by the maintainer of the law document."
+        },
+        {
+          "id": "RUS-X4",
+          "text": "Looking at the road ahead in these images, taken in the seconds before the pedestrian crosses: a pedestrian crossing road sign stands beside the road at or near the place where the pedestrian crosses, that is a blue square or rectangle with a white triangle that contains a walking person (Russian signs 5.19.1 and 5.19.2), which marks a pedestrian crossing at that place even when the stripes cannot be seen. A yellow or yellow-green warning sign with a walking person (sign 1.22) is not this sign. Answer NO when no such sign is visible; answer UNKNOWN when the roadside cannot be seen well enough to tell.",
+          "evidence": "approach",
+          "overrides": {
+            "YES": {
+              "RUS-T1": "NO"
+            }
+          },
+          "legal_basis": "PDD 4.3 requires pedestrians to cross at pedestrian crossings. Signs 5.19.1 and 5.19.2 (PDD appendix 1) mark a pedestrian crossing, and a person crossing at that place is not crossing outside a designated crossing. Consultant.ru: PDD RF section 4 (https://www.consultant.ru/document/cons_doc_LAW_2709/1736bcf22f8e05f9d3db535f6d084651bad887a4/); KoAP RF art. 12.29 part 1 (warning or RUB 500).",
+          "note": "Added by hand on 2026-10-05 after the user's review of 15 Russian claims, where three claims had a pedestrian crossing sign and were judged lawful. Kept by build_jaywalking_rules.py. To be confirmed by the maintainer of the law document."
+        }
+      ]
     },
     "SAU": {
       "number": 38,
@@ -1704,6 +1760,46 @@
       "fines": "Minimal.",
       "details": "Pedestrian crossing rules exist under traffic statutes. Enforcement is highly limited, with the Zimbabwe Republic Police (ZRP) occasionally conducting sporadic road safety blitzes targeting pedestrian violations. Public road jurisdiction.",
       "source": "Veritas Zimbabwe"
+    },
+    "BGD": {
+      "number": 52,
+      "iso": "BGD",
+      "name": "Bangladesh",
+      "legal_status": "ILLEGAL",
+      "enforcement": "Not assessed",
+      "rule_set": "STATUTORY OFFENSE",
+      "required": [
+        {
+          "id": "BGD-R1",
+          "text": "Pedestrian is on a public road, street, highway, or designated public transit corridor — NOT inside private property (enclosed shopping mall, corporate park, internal university campus walkway, private residential parking)."
+        },
+        {
+          "id": "BGD-R2",
+          "text": "Pedestrian is crossing, or has entered, the roadway."
+        },
+        {
+          "id": "BGD-R3",
+          "evidence": "approach",
+          "text": "A crossing facility for pedestrians is available on this road: a zebra crossing, a pedestrian crossing at a traffic signal, a foot overbridge, an underpass, or a similar facility. Look at the road ahead in these images, taken in the seconds before the pedestrian crosses: the facility is in view near the place where the pedestrian crosses, ahead of the camera car or just passed. Answer NO when no such facility is visible on this stretch of road; answer UNKNOWN when the road cannot be seen well enough to tell."
+        },
+        {
+          "id": "BGD-R4",
+          "text": "Pedestrian does not use that available crossing facility: the pedestrian crosses the road at another place on the carriageway instead."
+        }
+      ],
+      "triggers": [],
+      "not_specified": [
+        "Distance within which a crossing facility counts as available - Section 42(3) says only 'if any' (যদি থাকে).",
+        "Exemptions for children, elderly or disabled pedestrians - Not specified in the Act text reviewed."
+      ],
+      "decision": "all_required",
+      "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "legal_basis": "Illegal (Road Transport Act, 2018, section 42(3), penalty section 85). Section 42(3): \"প্রত্যেক সড়ক ব্যবহারকারীকে সড়ক বা মহাসড়ক পারাপারে নির্দিষ্ট জেব্রা ক্রসিং, ফুটওভার ব্রিজ, আন্ডারপাস বা অনুরূপ সুবিধা, যদি থাকে, ব্যবহার করিতে হইবে।\" (Every road user must use the designated zebra crossing, foot overbridge, underpass or similar facility, if there is one, to cross a road or highway.)",
+      "fines": "Imprisonment up to 1 month, or a fine up to BDT 10,000, or both (Road Transport Act 2018, section 85, for violating section 42).",
+      "details": "The duty applies to every road user and only where a crossing facility exists ('if any'). The Act sets no distance. Foot overbridges and underpasses count as facilities, so a pedestrian who crosses the carriageway beneath or beside a footbridge commits the offence even when no zebra crossing is near.",
+      "source": "Road Transport Act, 2018 (Act No. 47 of 2018), in force 1 November 2019. Bangla text of section 42 and 85 read at https://lawsofbangladesh.mintlify.app/laws/act-1262 (a mirror of bdlaws.minlaw.gov.bd), and confirmed by press reports of the 1 month / BDT 10,000 penalty. The official text is at https://legislativediv.portal.gov.bd/sites/default/files/files/legislativediv.portal.gov.bd/page/c0e8021e_5e8f_4ede_9050_f2faf351c2ad/24.%20Road%20Transport%20Act,%202018.pdf",
+      "added_by_hand": true,
+      "note": "Added by hand on 2026-10-05, not taken from Global_Jaywalking_Laws.pdf, which does not cover Bangladesh. Kept by build_jaywalking_rules.py. To be confirmed by the maintainer of the law document; the section text was read from a mirror, not the official gazette."
     }
   }
 }

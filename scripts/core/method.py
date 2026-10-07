@@ -27,6 +27,19 @@ METHOD_SETTINGS: dict[str, Any] = {
     "crossing_rescue_min_first_stage": None,
     "crossing_rescue_min_gate": None,
 
+    # crowd-city's crossing decision (crowd-city default.config, commit 340875e). "road_crossing"
+    # is its default rule: box candidates, then the feet must be on the road (SegFormer) and
+    # several walking checks pass; "detector" is its older box-only rule. Both join broken tracks.
+    "crowd_city_crossing_rule": "road_crossing",
+    "crowd_city_segmentation_model": "nvidia/segformer-b2-finetuned-cityscapes-1024-1024",
+    "crowd_city_segmentation_device": "auto",
+    "crowd_city_segmentation_batch_size": 8,
+    "crowd_city_segmentation_input_width": 1024,
+    "crowd_city_segmentation_input_height": 512,
+    "crowd_city_segmentation_min_confidence": 0.5,
+    "crowd_city_segmentation_coarse_hz": 1,
+    "crowd_city_segmentation_refine_hz": 4,
+
     # Earlier designs: this project's rule detector and the track features it measures.
     # Fractions are of the image width (x) or height (y); seconds become frames at the video's rate.
     "road_left": 0.45,
@@ -179,6 +192,14 @@ METHOD_SETTINGS: dict[str, Any] = {
     "approach_review_end_seconds": 0.5,
     "approach_review_frames": 4,
     "approach_review_crop_bottom": 0.12,
+
+    # Stage 3 conditions marked "evidence": "approach" (Russia RUS-X2, a crossing or intersection in sight)
+    # are judged on longer footage of the road ahead: this many seconds before the crossing, down to the
+    # end offset, in this many frames.
+    "law_approach_seconds": 12.0,
+    "law_approach_end_seconds": 0.5,
+    "law_approach_frames": 6,
+    "law_approach_crop_bottom": 0.12,
 
     # CROWD: the segment cut must match CROWD's own tracking (one second off the end), the
     # file server crawl limits, and the manual audit sample.

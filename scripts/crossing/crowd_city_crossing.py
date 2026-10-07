@@ -9,10 +9,12 @@ whether a zebra crossing or traffic light is there.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
 
+from scripts.crossing import crowd_city_track_joining
 from scripts.crossing.crowd_city_detection import CROSSING_PARAMETER_DEFAULTS, Detection
 from scripts.crossing.model_crossing import ModelCrossingDetectionResult
 from scripts.core.models import (
@@ -66,12 +68,24 @@ class CrowdCityCrossingDetector:
         settings = settings or {}
         self.min_confidence = float(settings.get("min_confidence", MIN_CONFIDENCE))
         self.parameters = {**CROSSING_PARAMETER_DEFAULTS, **settings.get("parameters", {})}
+        self.join_tracks = bool(settings.get("track_joining", crowd_city_track_joining.TRACK_JOINING_ENABLED))
         self.detection = Detection()
+
+    def _joined(self, observations: list[TrackObservation], fps: float) -> list[TrackObservation]:
+        """One id per pedestrian: crowd-city joins broken tracks before it judges any of them."""
+
+        if not self.join_tracks or not observations:
+            return observations
+        frame = observations_frame(observations)
+        joined = crowd_city_track_joining.join_track_pieces(frame, float(fps))
+        ids = [int(float(value)) for value in joined.get_column("unique-id").to_list()]
+        return [item if item.track_id == new else replace(item, track_id=new) for item, new in zip(observations, ids)]
 
     def detect(self, observations: list[TrackObservation], fps: float) -> ModelCrossingDetectionResult:
         confident = [o for o in observations if o.confidence >= self.min_confidence]
         if not any(o.class_id == PERSON_CLASS for o in confident):
             return ModelCrossingDetectionResult([], [], [])
+        confident = self._joined(confident, fps)
         ids, candidate_ids, bounds = self.detection.pedestrian_crossing(
             observations_frame(confident),
             "clip",

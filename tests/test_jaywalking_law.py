@@ -22,11 +22,12 @@ class RuleBookTests(unittest.TestCase):
         self.book = RuleBook(RULES)
 
     def test_all_countries_and_classes_are_present(self):
-        self.assertEqual(len(self.book.rules), 51)
+        # 51 countries from the PDF and Bangladesh, which was added by hand.
+        self.assertEqual(len(self.book.rules), 52)
         classes = [rule.rule_set for rule in self.book.rules.values()]
         self.assertEqual(
             (classes.count("STATUTORY OFFENSE"), classes.count("CODIFIED DUTY"), classes.count("NO STATUTORY OFFENSE")),
-            (36, 11, 4),
+            (37, 11, 4),
         )
 
     def test_country_codes_and_names_resolve(self):
@@ -154,6 +155,75 @@ class JudgeTests(unittest.TestCase):
         # Cannot tell: no label.
         verdict = judge.judge(LawLocation("NLD"), self._vlm({**base, "NLD-X9": "UNKNOWN"}))
         self.assertEqual((verdict.label, verdict.verdicts["NLD-R2"]), (LawLabel.INSUFFICIENT_EVIDENCE, "UNKNOWN"))
+
+    def test_russian_rules_follow_point_4_3_of_the_traffic_rules(self):
+        base = {"RUS-R1": "YES", "RUS-T1": "YES", "RUS-T2": "NO", "RUS-X1": "NO", "RUS-X2": "YES", "RUS-X3": "NO", "RUS-X4": "NO"}
+        location = LawLocation("RUS", None, "Moscow")
+        self.assertEqual(
+            self.judge.book.rules["RUS"].supplementary_ids, ["RUS-X1", "RUS-X2", "RUS-X3", "RUS-X4"]
+        )
+
+        def judge(**changes):
+            return self.judge.judge(location, self._vlm({**base, **changes}))
+
+        # Mid-block, with a crossing or junction in sight: an offence.
+        self.assertEqual(judge().label, LawLabel.JAYWALKING)
+        self.assertIn("RUS-X1: Looking at the road ahead", self.asked[-1])
+        # At an intersection, along the sidewalk lines: lawful.
+        verdict = judge(**{"RUS-X1": "YES"})
+        self.assertEqual((verdict.label, verdict.verdicts["RUS-T1"]), (LawLabel.NOT_JAYWALKING, "NO"))
+        self.assertEqual(verdict.verdict_sources["RUS-T1"], "RUS-X1")
+        # Nothing in sight makes a right angle crossing lawful (point 4.3); UNKNOWN blocks the label.
+        verdict = judge(**{"RUS-X2": "NO"})
+        self.assertEqual((verdict.label, verdict.verdicts["RUS-T1"]), (LawLabel.NOT_JAYWALKING, "NO"))
+        self.assertEqual(verdict.verdict_sources["RUS-T1"], "RUS-X2")
+        self.assertEqual(judge(**{"RUS-X2": "UNKNOWN"}).label, LawLabel.INSUFFICIENT_EVIDENCE)
+        # RUS-X2 is judged on footage of the approach when the caller provides it, in its own prompt.
+        prompts = []
+
+        def ask_approach(prompt):
+            prompts.append(prompt)
+            return {"verdicts": {"RUS-X1": "NO", "RUS-X2": "NO", "RUS-X3": "NO", "RUS-X4": "NO"}, "evidence_summary": "empty road"}
+
+        verdict = self.judge.judge(location, self._vlm({k: v for k, v in base.items() if not k.startswith("RUS-X")}), ask_approach)
+        self.assertEqual((verdict.label, verdict.verdicts["RUS-X2"]), (LawLabel.NOT_JAYWALKING, "NO"))
+        self.assertIn("RUS-X2:", prompts[0])
+        self.assertNotIn("RUS-X1:", self.asked[-1])
+        self.assertEqual(len(prompts), 1)
+        # Walking in a car park: no roadway is crossed.
+        verdict = judge(**{"RUS-X3": "YES"})
+        self.assertEqual((verdict.label, verdict.verdicts["RUS-R2"]), (LawLabel.NOT_JAYWALKING, "NO"))
+        self.assertEqual(verdict.reason, "Required condition not met: RUS-R2")
+        # A pedestrian crossing sign marks a crossing there: lawful.
+        verdict = judge(**{"RUS-X4": "YES"})
+        self.assertEqual((verdict.label, verdict.verdict_sources["RUS-T1"]), (LawLabel.NOT_JAYWALKING, "RUS-X4"))
+        # Cannot tell whether it is an intersection: no label.
+        self.assertEqual(judge(**{"RUS-X1": "UNKNOWN"}).label, LawLabel.INSUFFICIENT_EVIDENCE)
+
+    def test_bangladesh_requires_an_available_crossing_facility(self):
+        location = LawLocation("BGD", None, "Dhaka")
+        self.assertEqual(self.judge.book.resolve("Bangladesh"), "BGD")
+        prompts = []
+
+        def approach(answer):
+            def ask(prompt):
+                prompts.append(prompt)
+                return {"verdicts": {"BGD-R3": answer}, "evidence_summary": "footbridge ahead"}
+            return ask
+
+        main = self._vlm({"BGD-R1": "YES", "BGD-R4": "YES"})
+        verdict = self.judge.judge(location, main, approach("YES"))
+        self.assertEqual(verdict.label, LawLabel.JAYWALKING)
+        # R3 is judged on the approach footage, R1 and R4 on the crossing itself.
+        self.assertIn("BGD-R3:", prompts[-1])
+        self.assertNotIn("BGD-R3:", self.asked[-1])
+        self.assertIn("BGD-R4:", self.asked[-1])
+        # No facility, so section 42(3) ('if any') is not violated.
+        verdict = self.judge.judge(location, main, approach("NO"))
+        self.assertEqual((verdict.label, verdict.reason), (LawLabel.NOT_JAYWALKING, "Required condition not met: BGD-R3"))
+        # Without approach footage R3 is asked with the others.
+        verdict = self.judge.judge(location, self._vlm({"BGD-R1": "YES", "BGD-R3": "YES", "BGD-R4": "YES"}))
+        self.assertEqual(verdict.label, LawLabel.JAYWALKING)
 
     def test_countries_without_supplementary_conditions_are_unchanged(self):
         self.judge.judge(LawLocation("AUS"), self._vlm({"AUS-R1": "YES", "AUS-R3": "YES", "AUS-R4": "YES"}))

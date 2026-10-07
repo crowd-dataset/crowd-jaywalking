@@ -174,7 +174,7 @@ def keep_supplementary(entries: list[dict], output: Path) -> None:
     by_iso = {entry["iso"]: entry for entry in entries}
     for iso, old in previous.items():
         items = old.get("supplementary")
-        if not items:
+        if not items or old.get("added_by_hand"):
             continue
         entry = by_iso.get(iso)
         if entry is None:
@@ -189,6 +189,15 @@ def keep_supplementary(entries: list[dict], output: Path) -> None:
         logger.info("Kept {} supplementary condition(s) for {}", len(items), iso)
 
 
+def added_countries(output: Path) -> dict[str, dict]:
+    """Rule sets written by hand for countries the PDF does not cover (marked ``added_by_hand``)."""
+
+    if not output.is_file():
+        return {}
+    previous = json.loads(output.read_text(encoding="utf-8")).get("countries", {})
+    return {iso: entry for iso, entry in previous.items() if entry.get("added_by_hand")}
+
+
 def main() -> None:
     pdf, output = Path(sys.argv[1]), Path(sys.argv[2])
     entries = parse(pdf_lines(pdf))
@@ -196,10 +205,19 @@ def main() -> None:
         raise SystemExit(f"Expected 51 distinct countries, parsed {len(entries)}")
     output.parent.mkdir(parents=True, exist_ok=True)
     keep_supplementary(entries, output)
+    added = added_countries(output)
+    if added:
+        clash = sorted(set(added) & {entry["iso"] for entry in entries})
+        if clash:
+            raise SystemExit(f"Hand-added rule sets are now in the PDF, remove them from the rule file: {clash}")
+        logger.info("Kept {} hand-added rule set(s): {}", len(added), ", ".join(added))
     payload = {
         "source": pdf.name,
         "edition": "Edition 3, last updated March 20, 2026",
-        "countries": {entry["iso"]: entry for entry in sorted(entries, key=lambda e: e["number"])},
+        "countries": {
+            **{entry["iso"]: entry for entry in sorted(entries, key=lambda e: e["number"])},
+            **added,
+        },
     }
     output.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     logger.info("Wrote {} rule sets to {}", len(entries), output)

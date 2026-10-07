@@ -49,7 +49,13 @@ class JaywalkingPipeline:
 
             # crowd-city's detector only proposes snippets; the VLM decides whether they cross.
             self._vlm_check = config.crossing_gate_settings()["vlm_check"]
-            self.crossing_detector = CrowdCityCrossingDetector()
+            crowd_city = config.crowd_city_settings()
+            if crowd_city["rule"] == "road_crossing":
+                from scripts.crossing.crowd_city_road_rule import CrowdCityRoadCrossingDetector
+
+                self.crossing_detector = CrowdCityRoadCrossingDetector(crowd_city)
+            else:
+                self.crossing_detector = CrowdCityCrossingDetector()
         elif self.crossing_method == "classifier":
             try:
                 classifier = CrossingClassifier.load(classifier_settings["model"])
@@ -128,6 +134,8 @@ class JaywalkingPipeline:
                 # BoT-SORT's own GMC estimate, recomputed from the frames.
                 camera_motion = estimate_camera_motion(source)
             crossings = self.crossing_detector.detect(observations, fps, camera_motion)
+        elif getattr(self.crossing_detector, "needs_video", False):
+            crossings = self.crossing_detector.detect(observations, fps, source)
         else:
             crossings = self.crossing_detector.detect(observations, fps)
 

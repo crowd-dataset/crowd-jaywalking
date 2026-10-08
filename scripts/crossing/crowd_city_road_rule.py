@@ -351,6 +351,7 @@ class CrowdCityRoadCrossingDetector(CrowdCityCrossingDetector):
             intervals = rule.road_intervals_for_tracks(timelines)
             rates = {str(key): value for key, value in size_rates.items()}
             selected: set[int] = set()
+            reasons: dict[int, str] = {}
             for track_id in ids:
                 track = tracks.get(str(track_id))
                 if track is None:
@@ -360,19 +361,24 @@ class CrowdCityRoadCrossingDetector(CrowdCityCrossingDetector):
                     surfaces=[sample.surface for sample in timelines.get(str(track_id)) or []],
                     fps=fps, aspect_ratio=aspect_ratio, camera_strip=camera_strip,
                 )
+                key = int(float(track_id))
                 if not flags["road_crossing"]:
+                    reasons[key] = "feet not on the road, or not walking at a plausible pace"
                     continue
                 ordered = track.sort("frame-count")
                 frames = ordered.get_column("frame-count")
                 shift = self.reader.camera_shift(clip, fps, float(frames.min()), float(frames.max()))
                 if shift is None:
+                    reasons[key] = "camera motion could not be read"
                     continue
                 if rule.swept_by_turning_camera(ordered.get_column("x-center").to_list(), shift):
+                    reasons[key] = "carried across the picture by the turning camera"
                     continue
                 window = df.filter(frame_column.is_between(frames.min(), frames.max()))
                 if rule.unverifiable_crossing(track, window, track_id, fps, shift, flags.get("walking_speed_mps")):
+                    reasons[key] = "cannot be verified against a static background"
                     continue
-                selected.add(int(float(track_id)))
+                selected.add(key)
         finally:
             clip.close()
 
@@ -403,6 +409,7 @@ class CrowdCityRoadCrossingDetector(CrowdCityCrossingDetector):
                         "segment_end_frame": track_rows[-1].frame_index,
                         "x_range": event.features.x_range,
                         "road_frames": event.features.road_frames,
+                        "rejection": reasons.get(track_id),
                     },
                 )
             )

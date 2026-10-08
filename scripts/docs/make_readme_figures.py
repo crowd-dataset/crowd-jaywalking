@@ -142,13 +142,13 @@ def save(image: Image.Image, name: str) -> None:
 
 
 def claim_figure(run: Path) -> None:
-    split, video, person = "test", "video_0084", 2
+    split, video, person = "test", "video_0093", 5
     folder = evidence_folder(run, split, video, person)
     check, person_decision = decision(run, split, video, person)
     save(stack([
         trajectory_strip(folder),
         caption_block([
-            ("Stage 1 (crowd-city):", f"{video}, person {person} crosses the middle strip of the image: a potential crossing."),
+            ("Stage 1 (crowd-city):", f"{video}, person {person} passes in front of the camera with the feet on the road: a potential crossing."),
             ("Stage 2 crossing check:", f"{check['answer']}. {check['evidence_summary']}"),
             ("Stage 2 infrastructure:", person_decision["context"]["evidence_summary"]),
             ("Result:", "claim. JAAD: crossing, no pedestrian crossing and no traffic light annotated. Correct."),
@@ -181,14 +181,14 @@ def views_figure(run: Path) -> None:
 
 
 def rejected_figure(run: Path) -> None:
-    split, video, person = "test", "video_0110", 9
+    split, video, person = "test", "video_0150", 25
     check, _ = decision(run, split, video, person)
     save(stack([
         trajectory_strip(evidence_folder(run, split, video, person)),
         caption_block([
-            ("Stage 1 (crowd-city):", f"{video}, person {person} moves across the image: a potential crossing."),
+            ("Stage 1 (crowd-city):", f"{video}, person {person} passes in front of the camera: a potential crossing."),
             ("Stage 2 crossing check:", f"{check['answer']}. {check['evidence_summary']}"),
-            ("Result:", "no claim. JAAD: not crossing."),
+            ("Result:", "no claim. JAAD: a bystander, not crossing."),
         ], WIDTH),
     ]), "rejected_example.jpg")
 
@@ -233,6 +233,87 @@ def funnel_figure() -> None:
     logger.info("Saved {}", OUTPUT / "evaluation_funnel.png")
 
 
+def stage1_chart() -> None:
+    """Precision and recall of crowd-city's crossing decision alone, from the saved evaluation."""
+
+    summary = json.loads((ProjectConfig.load().path("results") / "crowd_city_stage1" / "summary.json").read_text(encoding="utf-8"))
+    rules = [("road_crossing", "road_crossing (default)", "#2a9d5c"), ("detector", "detector (older, box only)", "#7d9cc8")]
+    metrics = [("precision", "Precision\n(accepted tracks that cross)"), ("recall", "Recall\n(all JAAD crossers)"),
+               ("eligible_recall", "Recall\n(crossers with no zebra, no light)")]
+    fig, ax = plt.subplots(figsize=(9, 3.8), dpi=150)
+    width = 0.36
+    for offset, (key, label, colour) in enumerate(rules):
+        values = [100 * summary[key][metric] for metric, _ in metrics]
+        bars = ax.bar([i + (offset - 0.5) * width for i in range(len(metrics))], values, width, color=colour, label=label)
+        for bar, value in zip(bars, values):
+            ax.text(bar.get_x() + bar.get_width() / 2, value + 1.5, f"{value:.1f}%", ha="center", fontsize=9)
+    ax.set_xticks(range(len(metrics)), [label for _, label in metrics], fontsize=9)
+    ax.set_ylim(0, 112)
+    ax.set_ylabel("%")
+    ax.set_title(f"crowd-city's crossing decision on JAAD ({summary['videos']} videos, no VLM)", fontsize=11)
+    ax.legend(frameon=False, fontsize=9, loc="upper right", bbox_to_anchor=(1.0, 0.92))
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    fig.tight_layout()
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    fig.savefig(OUTPUT / "stage1_crowd_city.png")
+    logger.info("Saved {}", OUTPUT / "stage1_crowd_city.png")
+
+
+def stage1_example_figure() -> None:
+    """One track the road_crossing rule accepts and one it rejects, over SegFormer's road mask."""
+
+    import cv2
+    import numpy as np
+
+    from scripts.core.tracking import load_observations_csv
+    from scripts.crossing.crowd_city_road_rule import CrowdCityRoadCrossingDetector
+    from scripts.jaad.jaad_person_audit import JAADPersonAudit
+
+    config = ProjectConfig.load()
+    video = "video_0053"
+    audit = JAADPersonAudit(config, "test")
+    detector = CrowdCityRoadCrossingDetector(config.crowd_city_settings())
+    clip = audit.dataset.clip_path(video)
+    observations = load_observations_csv(audit.tracks_dir / f"{video}.csv")
+    result = detector.detect(observations, 30.0, clip)
+    reasons = {c.person_id: (c.track_features or {}).get("rejection") for c in result.classifications}
+    joined = detector._joined([o for o in observations if o.confidence >= 0.7], 30.0)
+    segmenter = detector.reader._segmenter()
+    capture = cv2.VideoCapture(str(clip))
+
+    def panel(event, accepted: bool) -> Image.Image:
+        frame_index = (event.transition_start_frame + event.transition_end_frame) // 2
+        capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+        ok, image = capture.read()
+        if not ok:
+            raise RuntimeError(f"Cannot read frame {frame_index} of {clip}")
+        small = cv2.cvtColor(cv2.resize(image, (segmenter.input_width, segmenter.input_height), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2RGB)
+        labels, _ = segmenter.segment(small[None])
+        road = cv2.resize((labels[0] == 0).astype(np.uint8), (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST) > 0
+        shaded = image.copy()
+        shaded[road] = (0.62 * shaded[road] + 0.38 * np.array([255, 120, 40])).astype(np.uint8)
+        box = next(o.box for o in joined if o.track_id == event.person_id and o.frame_index == frame_index and o.class_id == 0)
+        colour = (60, 170, 40) if accepted else (40, 40, 220)
+        height, width = image.shape[:2]
+        cv2.rectangle(shaded, (int(box.x1 * width), int(box.y1 * height)), (int(box.x2 * width), int(box.y2 * height)), colour, 5)
+        return Image.fromarray(cv2.cvtColor(shaded, cv2.COLOR_BGR2RGB))
+
+    accepted = result.valid_events[0]
+    rejected = next(e for e in result.rejected_events if reasons.get(e.person_id))
+    left = labelled(panel(accepted, True), f"accepted: person {accepted.person_id}")
+    right = labelled(panel(rejected, False), f"rejected: person {rejected.person_id}")
+    capture.release()
+    save(stack([
+        row_same_height([left, right], WIDTH),
+        caption_block([
+            ("Road (blue):", "SegFormer's road surface, read under the feet at sampled frames."),
+            ("Accepted:", f"{video}, person {accepted.person_id} passes in front of the camera with the feet on the road at a walking pace."),
+            ("Rejected:", f"{video}, person {rejected.person_id} passes the box rules but is dropped: {reasons[rejected.person_id]}."),
+        ], WIDTH),
+    ]), "stage1_example.jpg")
+
+
 def main() -> None:
     run = ProjectConfig.load().path("results")
     claim_figure(run)
@@ -240,6 +321,8 @@ def main() -> None:
     rejected_figure(run)
     infrastructure_figure(run)
     funnel_figure()
+    stage1_chart()
+    stage1_example_figure()
 
 
 if __name__ == "__main__":

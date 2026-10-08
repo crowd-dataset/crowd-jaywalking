@@ -27,7 +27,7 @@ The target is the [CROWD dataset](https://github.com/crowd-dataset/crowd): about
 ```mermaid
 flowchart LR
     V[Dashcam video] --> T[YOLO11x + BoT-SORT<br/>person tracks]
-    T --> S1[Stage 1<br/>crowd-city crossing detector<br/>potential crossings]
+    T --> S1[Stage 1<br/>crowd-city crossing decision<br/>potential crossings]
     S1 --> E[Evidence images<br/>around each crossing]
     E --> C{Stage 2a VLM<br/>crosses the car's road<br/>in front of the car?}
     C -- no --> X1[dropped]
@@ -40,11 +40,23 @@ flowchart LR
 
 Each stage answers one question, and a claim needs every stage to agree. Any doubt means no claim.
 
-1. **Stage 1: potential crossings, from bounding boxes only.** YOLO11x detects people and BoT-SORT (`configs/botsort.yaml`, identical to crowd-city's tracker) follows them. The crossing detector of [crowd-city](https://github.com/crowd-dataset/crowd-city) (`crowd_city_detection.py`, an unchanged copy) proposes a person as a potential crossing when their track passes from one side of a narrow strip in the middle of the image to the other and survives its motion, rider, and camera motion filters. Before the detector runs, crowd-city's track joining (`crowd_city_track_joining.py`, an unchanged copy of crowd-city's `track_joining.py` at commit 340875e) repairs broken tracks: a pedestrian walking sideways who is lost for up to 4 s behind a vehicle and returns under a new id gets one id again, so a crossing split in two pieces is judged as one. On the 323 JAAD videos (saved YOLO11x tracks) joining changes 17 videos, and the accepted tracks go from 232 to 236; without joining the output was identical to crowd-city's earlier detector on all 323 videos. By default stage 1 now applies crowd-city's `road_crossing` rule (`crowd_city_crossing_rule`), its default decision for what counts as a crossing: the box candidates must pass in front of the camera or emerge there, must not be riders or move only with the camera, must keep their feet on the road according to SegFormer (`crowd_city_road_rule.py`, with `crowd_city_road_crossing.py` copied from crowd-city), must walk at a plausible pace, and must not be carried across the picture by a turning camera. Stage 1 is therefore crowd-city's own crossing decision, with nothing added. Scored alone against JAAD's labels on 309 videos (no VLM), it accepts 152 tracks, 147 of them a pedestrian JAAD marks as crossing: precision 96.7% (98.7% if the 3 unverifiable bystanders are left out), and it finds 144 of the 462 JAAD crossers (recall 31.2%), 25 of the 111 crossers with no zebra crossing and no traffic light. The earlier box-only detector with joining accepts 217 tracks (precision 94.0%) and finds 204 of 462 (44.2%), 40 of the 111. 14 of the 23 correct claims below are still proposed, so `road_crossing` trades recall for precision. Set `crowd_city_crossing_rule` to `"detector"` for the earlier box-only decision. Only these snippets go further: the VLM never sees the full footage.
+1. **Stage 1: potential crossings, exactly crowd-city's crossing decision.** YOLO11x detects people and BoT-SORT (`configs/botsort.yaml`, identical to crowd-city's tracker) follows them. Then the decision of [crowd-city](https://github.com/crowd-dataset/crowd-city) (its default `crossing_rule: road_crossing`, copied at commit 340875e, with nothing added) proposes the people who walk across the road in front of the camera:
+   * **Track joining:** a pedestrian walking sideways who is lost for up to 4 s behind a vehicle and returns under a new id gets one id again (`crowd_city_track_joining.py`).
+   * **Box candidates:** the track passes in front of the camera (through the middle strip) or steps out there, moves sideways far enough, and changes size slowly. Riders and tracks that only move with the camera are dropped (`crowd_city_detection.py`).
+   * **Feet on the road:** SegFormer reads the surface under the feet at sampled frames (1 Hz, 4 Hz where the track enters and leaves the road), and the person must walk at a plausible pace (`crowd_city_road_crossing.py`, applied to a clip by `crowd_city_road_rule.py`).
+   * **The picture itself:** a person carried across the image by a turning camera, or a fast mover that cannot be verified, is dropped.
+
+   ![Stage 1: one track accepted and one rejected](docs/images/stage1_example.jpg)
+
+   Scored alone against JAAD's labels on 309 videos (no VLM; `scripts/crossing/evaluate_crowd_city_crossing.py`), it accepts 152 tracks, 147 of them a pedestrian JAAD marks as crossing: precision 96.7% (98.7% if the 3 unverifiable bystanders are left out). It finds 144 of the 462 JAAD crossers (recall 31.2%), and 25 of the 111 crossers with no zebra crossing and no traffic light.
+
+   ![crowd-city's crossing decision on JAAD](docs/images/stage1_crowd_city.png)
+
+   crowd-city's older box-only detector (`crowd_city_crossing_rule: "detector"`, also with joining) accepts 217 tracks (precision 94.0%) and finds 204 of 462 (44.2%), 40 of the 111, so `road_crossing` trades recall for precision. 14 of the 23 correct claims in the results below are still proposed. Only these snippets go further: the VLM never sees the full footage.
 2. **Stage 2: the VLM checks the snippet** (Qwen3-VL-8B-Instruct).
    * **Crossing check** (prompt `v3`): does the person walk across the road the camera car is driving on, in front of the car? Crossing a side street or another road is not of interest. Only a clear YES continues.
    * **Infrastructure check** (prompt `zebra_light_v5`): is there a zebra crossing, a traffic light, or a pedestrian crossing sign? This prompt never judges the person. A fixed policy then requires every infrastructure answer to be NO, for this person and for every other crossing person in the clip.
-3. **Stage 3: the law.** Whether such a crossing is jaywalking depends on the country. A separate step (`scripts/law/run_jaywalking_law.py`) retrieves the rule set of the video's country from `Global_Jaywalking_Laws.pdf` (51 countries), asks the VLM YES, NO, or UNKNOWN on each numbered condition (plus any hand-added `supplementary` condition of that country, see [Limitations](#limitations)), and computes the label from the rule set's decision rule. The model never chooses the label.
+3. **Stage 3: the law.** Whether such a crossing is jaywalking depends on the country. A separate step (`scripts/law/run_jaywalking_law.py`) retrieves the rule set of the video's country from `Global_Jaywalking_Laws.pdf` (51 countries, plus a hand-written Bangladesh set), asks the VLM YES, NO, or UNKNOWN on each numbered condition (plus any hand-added `supplementary` condition of that country, see [Limitations](#limitations)), and computes the label from the rule set's decision rule. The model never chooses the label.
 
 After a run, an optional **approach review** (`scripts/review/run_approach_review.py`) looks at frames from a few seconds before each claimed crossing and flags a zebra crossing on the road ahead that the crossing window itself misses. It is a flag for a manual look, not a veto: nothing is dropped.
 
@@ -94,7 +106,7 @@ Claims that JAAD cannot settle were reviewed by hand and recorded in `data/claim
 
 ## Results
 
-The numbers below were measured with crowd-city's box-only detector (`crowd_city_crossing_rule: "detector"`, with track joining off). Stage 1 now defaults to crowd-city's `road_crossing` rule, whose crossing decision alone has precision 96.7% and recall 31.2% on JAAD (see How it works); it proposes 14 of the 23 correct claims, and the full pipeline has not been rerun with it yet.
+The numbers below were measured with crowd-city's box-only detector (`crowd_city_crossing_rule: "detector"`, with track joining off). Stage 1 now defaults to crowd-city's `road_crossing` rule, whose crossing decision alone has precision 96.7% and recall 31.2% on JAAD (see Stage 1 under How it works); it proposes 14 of the 23 correct claims, and the full pipeline has not been rerun with it yet.
 
 On all three JAAD splits (train, val, and test; 309 videos):
 
@@ -108,7 +120,7 @@ On all three JAAD splits (train, val, and test; 309 videos):
 | **All** | **23** | **23** (95% lower bound 87.8%) | **22 of 111 (20%)** |
 
 * 22 claims are confirmed by JAAD. The 23rd (`video_0092`) JAAD marks as "traffic light in view", but the light is far from where the person crosses; manual review: correct.
-* Most eligible crossers are lost in stage 1: the crowd-city detector, which only sees bounding boxes, proposes 40 of the 111. The VLM crossing check then rejects some real crossers as "walking along the pavement".
+* Most eligible crossers are lost in stage 1: the older box-only crowd-city detector proposed 40 of the 111 (the current `road_crossing` decision finds 25 of them, see Stage 1). The VLM crossing check then rejects some real crossers as "walking along the pavement".
 * The crossing check prompt (`v3`) was chosen after the test split had been inspected, so the test split is no longer a clean held-out set.
 * Stage 3 on the same 23 claims, applying three countries' rules: all `JAYWALKING` under Canada and Ukraine (crossing outside a designated crossing), all `NOT_JAYWALKING` under Australia (no crossing within 20 metres, so crossing there is lawful). JAAD has no per video country, so this checks that the rules are applied, not legal correctness.
 
@@ -152,6 +164,7 @@ Edit `config` for paths and runs. When `default.config` gains settings, add them
 | Track JAAD | `uv run python -u .\scripts\jaad\run_jaad_crossing_benchmark.py` | Once per `jaad_benchmark_split` (`train`, `val`, `test`); saves tracks to `jaad_benchmark_results` |
 | Stages 1 and 2 on JAAD, with the audit | `uv run python -u .\scripts\jaad\run_jaad_person_audit.py` | Split from `jaad_audit_split`; resumes after an interruption |
 | Stages 1 and 2 on CROWD | `uv run python -u .\scripts\crowd\run_crowd_analysis.py` | `crowd_max_segments` or `crowd_video_id` limit the run |
+| Stage 1 alone against JAAD | `uv run python -u .\scripts\crossing\evaluate_crowd_city_crossing.py` | No VLM. Writes `<results>/crowd_city_stage1/summary.json` (precision and recall of crowd-city's decision on all three splits) |
 | Stage 3 (law) | `uv run python .\scripts\law\run_jaywalking_law.py <results folder>` | CROWD takes the country from `mapping.csv`; for JAAD add `--country CAN` (repeatable) |
 | Approach review | `uv run python .\scripts\review\run_approach_review.py <results folder>` | After a run, before or after stage 3: flags claims with a zebra crossing on the road ahead in the seconds before the crossing, for a manual look. Changes nothing; see [Outputs](#outputs) |
 | One video | `uv run python .\scripts\evaluation\run_one_video.py` | Set `smoke_test_video` first |
@@ -259,7 +272,7 @@ Settings live in two places. Paths are relative to the repository root unless ab
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
-| `crossing_decision_mode` | `"crowd_city"` | How stage 1 decides crossings. `"crowd_city"`: crowd-city's detector (current method). `"classifier"`: the JAAD trained classifier and gate below. `"rules"`: this project's own rule detector (the corridor settings below) |
+| `crossing_decision_mode` | `"crowd_city"` | How stage 1 decides crossings. `"crowd_city"`: crowd-city's crossing decision (current method; `crowd_city_crossing_rule` below chooses the rule). `"classifier"`: the JAAD trained classifier and gate below. `"rules"`: this project's own rule detector (the corridor settings below) |
 | `crossing_vlm_check` | `true` | Ask the VLM whether each candidate really crosses; only a clear YES continues. `true` or `false` |
 | `crossing_vlm_check_version` | `"v3"` | Crossing check prompt. `"v1"`: crosses any carriageway. `"v2"`: whole-track wording. `"v3"`: crosses the camera car's road, in front of the car |
 | `crossing_rescue_min_first_stage` | `null` | Classifier mode only: also send first stage rejections with at least this probability to the VLM crossing check. Number 0 to 1, or `null` (off). Set together with `crossing_rescue_min_gate` |
@@ -487,7 +500,7 @@ The first stage classifier alone, on the official JAAD test split (YOLO26x): tra
 ├── mapping.csv                   # CROWD videos, segments, and locations
 ├── configs/
 │   ├── botsort.yaml              # tracker settings
-│   └── jaywalking_rules.json     # 51 country rule sets, from the PDF
+│   └── jaywalking_rules.json     # 52 country rule sets: 51 from the PDF, Bangladesh by hand
 ├── scripts/                      # all code, by topic: library modules and the scripts that run them
 │   ├── core/                     # method (fixed settings), config, models, pipeline (stages 1 and 2), policy, evidence, tracking, vlm (prompts)
 │   ├── crossing/
@@ -495,6 +508,7 @@ The first stage classifier alone, on the official JAAD test split (YOLO26x): tra
 │   │   ├── crowd_city_track_joining.py   # crowd-city's track joining (unchanged copy)
 │   │   ├── crowd_city_crossing.py        # joins tracks, then applies the detector (stage 1)
 │   │   ├── crowd_city_road_rule.py       # crowd-city's road_crossing rule on a clip (stage 1 default)
+│   │   ├── evaluate_crowd_city_crossing.py  # stage 1 alone against JAAD: precision and recall
 │   │   ├── crowd_city_road_crossing.py, crowd_city_track_metrics.py, crowd_city_surface.py,
 │   │   │   crowd_city_surface_constants.py, crowd_city_segformer.py, crowd_city_camera_shift.py   # copied from crowd-city
 │   │   ├── crossing.py, crossing_classifier.py, crossing_gate.py, model_crossing.py,

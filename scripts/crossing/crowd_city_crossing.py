@@ -68,6 +68,7 @@ class CrowdCityCrossingDetector:
         settings = settings or {}
         self.min_confidence = float(settings.get("min_confidence", MIN_CONFIDENCE))
         self.parameters = {**CROSSING_PARAMETER_DEFAULTS, **settings.get("parameters", {})}
+        self.id_map: dict[tuple[int, int], int] = {}
         self.join_tracks = bool(settings.get("track_joining", crowd_city_track_joining.TRACK_JOINING_ENABLED))
         self.detection = Detection()
 
@@ -79,7 +80,22 @@ class CrowdCityCrossingDetector:
         frame = observations_frame(observations)
         joined = crowd_city_track_joining.join_track_pieces(frame, float(fps))
         ids = [int(float(value)) for value in joined.get_column("unique-id").to_list()]
+        self.id_map = {
+            (item.frame_index, item.track_id): new for item, new in zip(observations, ids) if item.track_id != new
+        }
         return [item if item.track_id == new else replace(item, track_id=new) for item, new in zip(observations, ids)]
+
+    def relabel(self, observations: list[TrackObservation]) -> list[TrackObservation]:
+        """The observations with the ids of the last joined clip, so events can be looked up by id."""
+
+        if not self.id_map:
+            return observations
+        return [
+            replace(item, track_id=self.id_map[(item.frame_index, item.track_id)])
+            if (item.frame_index, item.track_id) in self.id_map and item.class_id == PERSON_CLASS
+            else item
+            for item in observations
+        ]
 
     def detect(self, observations: list[TrackObservation], fps: float) -> ModelCrossingDetectionResult:
         confident = [o for o in observations if o.confidence >= self.min_confidence]

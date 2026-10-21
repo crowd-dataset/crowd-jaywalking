@@ -302,7 +302,12 @@ class CrowdAnalysisRunner:
                         "result": to_jsonable(result),
                     }
                     self._write_json(detail_path, payload)
-                    if not self.settings["keep_segment_videos"]:
+                    has_claim = any(item.label.value == "JAYWALKING" for item in result.person_decisions)
+                    if not self.settings["keep_segment_videos"] and not (
+                        has_claim and self.settings.get("keep_claim_segment_videos")
+                    ):
+                        # The details are saved above; only a clip with a claim is kept, because
+                        # stage 3 reads the frames before the crossing from it.
                         segment_video.path.unlink(missing_ok=True)
                 except Exception as error:
                     failures.append(self._failure(segment, "inference", error))
@@ -339,6 +344,12 @@ class CrowdAnalysisRunner:
                 for item in segments
                 if item.video_id.removesuffix(".mp4") == selected_video
             ]
+        selection = self.settings.get("selection")
+        if selection is not None:
+            segments = [
+                item for item in segments if (item.video_id, item.start_second, item.end_second) in selection
+            ]
+            logger.info("crowd_selection: kept {} segments", len(segments))
         vehicle_types = self.settings["vehicle_types"]
         if vehicle_types is not None:
             # The method looks down the road the camera car drives on, so footage filmed from

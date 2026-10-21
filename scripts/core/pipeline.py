@@ -139,6 +139,10 @@ class JaywalkingPipeline:
         else:
             crossings = self.crossing_detector.detect(observations, fps)
 
+        if hasattr(self.crossing_detector, "relabel"):
+            # Joined tracks carry new ids; the evidence and the audit look people up by them.
+            observations = self.crossing_detector.relabel(observations)
+
         candidates = [(event, "gate") for event in crossings.valid_events]
         if self._rescue is not None:
             minimum_first_stage, minimum_gate = self._rescue

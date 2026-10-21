@@ -1,0 +1,7 @@
+country,segments,hours,crossings_detected,at_zebra_or_light,not_confirmed_by_vlm,crossings_without_zebra_or_light
+China,38,15.96,247,218,29,0
+Japan,72,16.19,64,54,10,0
+Bangladesh,53,16.89,299,16,204,79
+France,60,16.89,527,453,66,8
+Sweden,70,17.16,386,339,45,2
+Denmark,45,17.30,410,346,62,2

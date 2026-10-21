@@ -83,5 +83,14 @@ class VehicleFilterTests(unittest.TestCase):
             _selecting_runner([0])._select_segments(_segments(None, None))
 
 
+class SelectionTests(unittest.TestCase):
+    def test_only_the_selected_segments_are_kept(self) -> None:
+        runner = _selecting_runner(None)
+        runner.settings["selection"] = {("v1", 0, 10), ("v2", 0, 99)}
+        kept = runner._select_segments(_segments(0, 0, 0))
+        # v2 is listed with another end second, so it is a different segment.
+        self.assertEqual([s.video_id for s in kept], ["v1"])
+
+
 if __name__ == "__main__":
     unittest.main()

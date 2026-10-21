@@ -108,12 +108,15 @@ CROWD_TRACK_SOURCES = ("precomputed", "tracking")
 # copies of inputs are kept. They never change a result, so the fingerprint ignores
 # them and one results folder can be filled video by video or on another machine.
 RESULT_NEUTRAL_KEYS = (
+    "crowd_city_segmentation_store",
     "logger_level",
     "resume",
     "crowd_resume",
     "crowd_video_id",
     "crowd_max_segments",
     "crowd_vehicle_types",
+    "crowd_selection",
+    "crowd_keep_claim_segment_videos",
     "jaad_video_id",
     "approach_review_seconds",
     "approach_review_end_seconds",
@@ -413,6 +416,9 @@ class ProjectConfig:
             "segmentation_min_confidence": float(value("crowd_city_segmentation_min_confidence")),
             "coarse_hz": float(value("crowd_city_segmentation_coarse_hz")),
             "refine_hz": float(value("crowd_city_segmentation_refine_hz")),
+            "segmentation_store": (
+                str(self.path("crowd_city_segmentation_store")) if value("crowd_city_segmentation_store") else None
+            ),
         }
         if settings["rule"] not in {"road_crossing", "detector"}:
             raise ValueError("crowd_city_crossing_rule must be one of: road_crossing, detector")
@@ -457,6 +463,8 @@ class ProjectConfig:
                 value("crowd_delete_downloaded_base_videos")
             ),
             "keep_segment_videos": bool(value("crowd_keep_segment_videos")),
+            "keep_claim_segment_videos": bool(value("crowd_keep_claim_segment_videos")),
+            "selection": self._crowd_selection(),
             "max_segments": int(value("crowd_max_segments")),
             "vehicle_types": self._vehicle_types(),
             "audit_random_seed": int(value("crowd_audit_random_seed")),
@@ -472,6 +480,20 @@ class ProjectConfig:
             ],
             "bbox_download_dir": self.path("crowd_bbox_download_dir"),
         }
+
+    def _crowd_selection(self) -> set[tuple[str, int, int]] | None:
+        """The (video id, start, end) of the segments to process from ``crowd_selection``, or None for all."""
+
+        name = self.get("crowd_selection")
+        if not name:
+            return None
+        import csv
+
+        with self.path("crowd_selection").open(encoding="utf-8", newline="") as handle:
+            return {
+                (row["video_id"], int(row["start_second"]), int(row["end_second"]))
+                for row in csv.DictReader(handle)
+            }
 
     def _vehicle_types(self) -> list[int] | None:
         """The CROWD vehicle type codes to process, or None for every type."""

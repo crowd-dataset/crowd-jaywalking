@@ -124,6 +124,31 @@ On all three JAAD splits (train, val, and test; 309 videos):
 * The crossing check prompt (`v3`) was chosen after the test split had been inspected, so the test split is no longer a clean held-out set.
 * Stage 3 on the same 23 claims, applying three countries' rules: all `JAYWALKING` under Canada and Ukraine (crossing outside a designated crossing), all `NOT_JAYWALKING` under Australia (no crossing within 20 metres, so crossing there is lawful). JAAD has no per video country, so this checks that the rules are applied, not legal correctness.
 
+### Crossings in six countries (CROWD sample, stages 1 and 2)
+
+A random sample of about 100 hours of daytime footage filmed from a car, 16 to 17 hours per country (338 segments;
+`scripts/crowd/select_country_sample.py`, seed 0), run through stages 1 and 2 with the VLM in 4-bit mode. The country law (stage 3) is not used. A crossing counts as
+**without zebra crossing or traffic light** when stage 1 finds it and the VLM confirms it as a crossing and finds neither a zebra crossing, a traffic light
+nor a crossing sign.
+
+![Crossings per country](docs/images/six_countries_crossings.png)
+
+| Country | Hours | Crossings detected (stage 1) | At a zebra crossing or light | Not confirmed by the VLM | Without zebra crossing or light |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| China | 16.0 | 247 | 218 | 29 | 0 |
+| Japan | 16.2 | 64 | 54 | 10 | 0 |
+| Bangladesh | 16.9 | 299 | 16 | 204 | **79** |
+| France | 16.9 | 527 | 453 | 66 | 8 |
+| Sweden | 17.2 | 386 | 339 | 45 | 2 |
+| Denmark | 17.3 | 410 | 346 | 62 | 2 |
+
+The table is also in [`docs/six_countries_crossings.csv`](docs/six_countries_crossings.csv); the bar plot is made by `scripts/crowd/plot_country_crossings.py`.
+
+* The three right-hand columns add up to the detected crossings. A crossing the VLM crossing check does not confirm is never judged for a zebra crossing or light, so it counts in neither of the other two columns. The last column is therefore a lower bound if the VLM wrongly rejected real crossings; Bangladesh has the most (204 of 299).
+* Bangladesh stands out with 4.7 crossings without zebra crossing or light per hour of footage, against 0.5 or fewer in the other five countries. In China and Japan every crossing the VLM confirmed was at a zebra crossing or a traffic light.
+* 338 of 341 sampled segments finished: one had no precomputed track file, one yielded no video frames, and one is missing.
+* The sample is random over the daytime car footage of each country, so large cities dominate (Paris, Stockholm, Copenhagen, Sylhet, Guangzhou). The counts are not checked by hand; `scripts/crowd/make_verification_clips.py` cuts a random sample of clips, with the person's box drawn, to check them by eye.
+
 ## Setup
 
 All commands run from the repository root (PowerShell on Windows; the same commands work in a Linux shell with `/` paths).
@@ -164,6 +189,10 @@ Edit `config` for paths and runs. When `default.config` gains settings, add them
 | Track JAAD | `uv run python -u .\scripts\jaad\run_jaad_crossing_benchmark.py` | Once per `jaad_benchmark_split` (`train`, `val`, `test`); saves tracks to `jaad_benchmark_results` |
 | Stages 1 and 2 on JAAD, with the audit | `uv run python -u .\scripts\jaad\run_jaad_person_audit.py` | Split from `jaad_audit_split`; resumes after an interruption |
 | Stages 1 and 2 on CROWD | `uv run python -u .\scripts\crowd\run_crowd_analysis.py` | `crowd_max_segments` or `crowd_video_id` limit the run |
+| Sample of CROWD segments | `uv run python scripts/crowd/select_country_sample.py results/selection.csv --countries China Japan --hours 100` | Random daytime car segments, hours split equally over the countries; point `crowd_selection` at the CSV |
+| Crossings per country | `uv run python scripts/crowd/plot_country_crossings.py <results folder>` | Writes `crossings_by_country.png` and `.csv` into the results folder |
+| Clips to check by eye | `uv run python scripts/crowd/make_verification_clips.py <results folder>` | A random sample per country of crossings without zebra crossing or light, at one, and not confirmed, as clips with the person's box; `index.csv` links each to YouTube |
+| Share the surface labels | `uv run python scripts/crowd/sync_segmentation.py pull` or `push` | Copies `crowd_city_segmentation_store` to or from the CROWD server's disk (password in `secret` as `crowd_tue3_ssh_password`) |
 | Stage 1 alone against JAAD | `uv run python -u .\scripts\crossing\evaluate_crowd_city_crossing.py` | No VLM. Writes `<results>/crowd_city_stage1/summary.json` (precision and recall of crowd-city's decision on all three splits) |
 | Stage 3 (law) | `uv run python .\scripts\law\run_jaywalking_law.py <results folder>` | CROWD takes the country from `mapping.csv`; for JAAD add `--country CAN` (repeatable) |
 | Approach review | `uv run python .\scripts\review\run_approach_review.py <results folder>` | After a run, before or after stage 3: flags claims with a zebra crossing on the road ahead in the seconds before the crossing, for a manual look. Changes nothing; see [Outputs](#outputs) |
@@ -238,6 +267,8 @@ Settings live in two places. Paths are relative to the repository root unless ab
 | `crowd_ftp_aliases` | `["tue4", "tue5"]` | Server folders searched for a video |
 | `crowd_results` | `"results/crowd_jaywalking"` | Output folder of `scripts/crowd/run_crowd_analysis.py` |
 | `crowd_resume` | `true` | Skip segments already processed |
+| `crowd_selection` | `null` | CSV with `video_id`, `start_second`, `end_second` columns: process only these segments (see `scripts/crowd/select_country_sample.py`); `null` processes all |
+| `crowd_keep_claim_segment_videos` | `true` | Keep the cut video of a segment that has a claim even when `crowd_keep_segment_videos` is `false` (stage 3 and the approach review read it) |
 | `crowd_download_dir` | `"data/crowd_downloads"` | Where downloaded source videos are kept |
 | `crowd_delete_downloaded_base_videos` | `false` | Delete a source video once its segments are processed |
 | `crowd_keep_segment_videos` | `true` | Keep the cut segment videos |
@@ -284,6 +315,7 @@ Settings live in two places. Paths are relative to the repository root unless ab
 | `crowd_city_segmentation_input_width`, `crowd_city_segmentation_input_height` | `1024`, `512` | Frame size fed to SegFormer |
 | `crowd_city_segmentation_min_confidence` | `0.5` | Minimum SegFormer confidence of a pixel to count toward the surface under the feet |
 | `crowd_city_segmentation_coarse_hz`, `crowd_city_segmentation_refine_hz` | `1`, `4` | Frames per second sampled along a track, and around the moments it enters and leaves the road |
+| `crowd_city_segmentation_store` | `"data/crowd_segmentation"` | Where the SegFormer surface labels of each CROWD segment are kept (crowd-city's layout: `index/<video>_<start>_<fps>.parquet`, `manifest/*.json`), so a segment is segmented once; `null` keeps none. Share them with `scripts/crowd/sync_segmentation.py` |
 
 #### Classifier mode (`crossing_decision_mode: "classifier"`)
 
@@ -522,7 +554,9 @@ The first stage classifier alone, on the official JAAD test split (YOLO26x): tra
 │   │   └── compute_jaad_camera_motion.py # BoT-SORT camera motion (earlier designs)
 │   ├── crowd/
 │   │   ├── crowd_source.py, crowd_analysis.py, crowd_tracks.py  # mapping, download, runs, precomputed tracks
-│   │   └── run_crowd_analysis.py         # stages 1 and 2 on CROWD
+│   │   ├── run_crowd_analysis.py         # stages 1 and 2 on CROWD
+│   │   ├── select_country_sample.py, plot_country_crossings.py  # sample segments per country, bar plot of the crossings
+│   │   └── make_verification_clips.py, sync_segmentation.py     # clips to check by eye, share the surface labels
 │   ├── law/
 │   │   ├── jaywalking_law.py, law_stage.py  # stage 3: rule sets, decision rules, runs over saved claims
 │   │   ├── build_jaywalking_rules.py     # PDF -> configs/jaywalking_rules.json

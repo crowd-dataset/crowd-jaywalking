@@ -39,6 +39,9 @@ METHOD_SETTINGS: dict[str, Any] = {
     "crowd_city_segmentation_min_confidence": 0.5,
     "crowd_city_segmentation_coarse_hz": 1,
     "crowd_city_segmentation_refine_hz": 4,
+    # Folder where the SegFormer surface labels of each segment are kept (crowd-city's store layout:
+    # index/<stem>.parquet and manifest/<stem>.json), so a segment is segmented once. null keeps none.
+    "crowd_city_segmentation_store": "data/crowd_segmentation",
 
     # Earlier designs: this project's rule detector and the track features it measures.
     # Fractions are of the image width (x) or height (y); seconds become frames at the video's rate.

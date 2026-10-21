@@ -21,7 +21,7 @@ from scripts.core.config import ProjectConfig
 from scripts.jaad.jaad import JAADDataset, JAADPedestrianTrack, JAADVideoAnnotations
 from scripts.jaad.jaad_benchmark import box_iou
 from scripts.core.models import BoundingBox, to_jsonable
-from scripts.core.tracking import load_observations_csv
+from scripts.core.tracking import load_observations_csv, save_observations_csv
 from custom_logger import CustomLogger
 
 logger = CustomLogger(__name__)  # use custom logger
@@ -160,13 +160,19 @@ class JAADPersonAudit:
                 from scripts.crossing.camera_motion import load_camera_motion_csv
 
                 camera_motion = load_camera_motion_csv(motion_path)
+            observations = load_observations_csv(source)
             result = pipeline.process_observations(
                 self.dataset.clip_path(video_id),
                 self.output / "evidence",
                 fps,
-                load_observations_csv(source),
+                observations,
                 camera_motion=camera_motion,
             )
+            if hasattr(pipeline.crossing_detector, "relabel"):
+                # Claims carry the ids of joined tracks, so the audit must read boxes under the same ids.
+                save_observations_csv(
+                    self.output / "tracking" / source.name, pipeline.crossing_detector.relabel(observations)
+                )
             details_path.write_text(
                 json.dumps({"video_id": video_id, "result": to_jsonable(result)}, indent=1),
                 encoding="utf-8",

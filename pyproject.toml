@@ -21,6 +21,8 @@ dependencies = [
     "ultralytics>=8.4.0",
     "bitsandbytes>=0.50.2",
     "pycountry>=26.2.16",
+    "paramiko>=5.1.0",
+    "matplotlib>=3.10.9",
 ]
 
 # CUDA 12.8 wheels, the minimum for RTX 50 series (Blackwell) GPUs, on Windows and Linux.

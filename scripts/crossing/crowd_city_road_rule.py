@@ -52,6 +52,7 @@ from scripts.crossing.crowd_city_surface import (
     surface_timeline,
     transition_brackets,
 )
+from scripts.crossing.crowd_city_surface_store import SurfaceStore, segment_stem, track_signature
 from scripts.crossing.model_crossing import ModelCrossingDetectionResult
 
 logger = CustomLogger(__name__)
@@ -155,6 +156,23 @@ class RoadSurfaceReader:
         self.coarse_hz = float(settings["coarse_hz"])
         self.refine_hz = float(settings["refine_hz"])
         self.minimum_confidence = float(settings["segmentation_min_confidence"])
+        root = settings.get("segmentation_store")
+        self.store = SurfaceStore(root) if root else None
+        self.stem: str | None = None
+
+    def _store_settings(self) -> dict[str, Any]:
+        """Everything that changes the meaning of a stored surface label."""
+
+        return {
+            "model": str(self.settings["segmentation_model"]),
+            "input_width": int(self.settings["segmentation_input_width"]),
+            "input_height": int(self.settings["segmentation_input_height"]),
+            "coarse_hz": self.coarse_hz,
+            "refine_hz": self.refine_hz,
+            "footpoint_band_fraction": DEFAULT_FOOTPOINT_BAND_FRACTION,
+            "footpoint_width_fraction": DEFAULT_FOOTPOINT_WIDTH_FRACTION,
+            "minimum_confidence": self.minimum_confidence,
+        }
 
     def _segmenter(self) -> Any:
         if self.segmenter is None:
@@ -242,6 +260,18 @@ class RoadSurfaceReader:
         return samples
 
     def timelines(self, clip: ClipFrames, fps: float, tracks: Mapping[str, pl.DataFrame]) -> dict[str, list[SurfaceSample]]:
+        use_store = self.store is not None and self.stem is not None and bool(tracks)
+        if use_store:
+            signatures = {str(key): track_signature(value) for key, value in tracks.items()}
+            stored = self.store.load(self.stem, self._store_settings(), signatures)
+            if stored is not None:
+                return stored
+        result = self._compute_timelines(clip, fps, tracks)
+        if use_store:
+            self.store.save(self.stem, self._store_settings(), signatures, result)
+        return result
+
+    def _compute_timelines(self, clip: ClipFrames, fps: float, tracks: Mapping[str, pl.DataFrame]) -> dict[str, list[SurfaceSample]]:
         boxes = self.boxes(tracks)
         if not boxes:
             return {}
@@ -347,6 +377,7 @@ class CrowdCityRoadCrossingDetector(CrowdCityCrossingDetector):
         tracks = crossing_tracks(df, ids, bounds)
         clip = ClipFrames(video_path)
         try:
+            self.reader.stem = segment_stem(video_path, fps)
             timelines = self.reader.timelines(clip, fps, tracks)
             intervals = rule.road_intervals_for_tracks(timelines)
             rates = {str(key): value for key, value in size_rates.items()}

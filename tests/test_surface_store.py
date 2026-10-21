@@ -5,7 +5,11 @@ from pathlib import Path
 import polars as pl
 
 from scripts.crossing.crowd_city_surface import SurfaceSample
-from scripts.crossing.crowd_city_surface_store import SurfaceStore, segment_stem, track_signature
+from scripts.crossing.crowd_city_surface_store import (
+    SurfaceStore,
+    segment_stem,
+    track_signature,
+)
 
 
 def _track(offset: float = 0.0) -> pl.DataFrame:
@@ -36,7 +40,8 @@ class SurfaceStoreTests(unittest.TestCase):
 
     def test_later_runs_add_tracks(self) -> None:
         self.store.save("v_1_30", self.settings, self.signatures, self.timelines)
-        self.store.save("v_1_30", self.settings, {"9.0": "x"}, {"9.0": [SurfaceSample("9.0", 1, 0.0, "footpath", 0.8)]})
+        added = {"9.0": [SurfaceSample("9.0", 1, 0.0, "footpath", 0.8)]}
+        self.store.save("v_1_30", self.settings, {"9.0": "x"}, added)
         loaded = self.store.load("v_1_30", self.settings, {**self.signatures, "9.0": "x"})
         self.assertEqual(sorted(loaded), ["7.0", "9.0"])
 

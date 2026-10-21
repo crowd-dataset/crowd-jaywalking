@@ -64,7 +64,9 @@ def track_boxes(bbox_dirs: list[Path], row: dict[str, str]) -> dict[int, tuple[f
     with matches[0].open(encoding="utf-8", newline="") as handle:
         for item in csv.DictReader(handle):
             if item["yolo-id"] == "0" and str(int(float(item["unique-id"]))) == row["person_id"]:
-                boxes[int(item["frame-count"])] = tuple(float(item[key]) for key in ("x-center", "y-center", "width", "height"))
+                boxes[int(item["frame-count"])] = tuple(
+                    float(item[key]) for key in ("x-center", "y-center", "width", "height")
+                )
     return boxes
 
 
@@ -79,7 +81,7 @@ def write_clip(source: Path, offset_seconds: float, row: dict[str, str], output:
     start_frame = max(1, int(first - PAD_SECONDS * fps))
     end_frame = min(last + int(PAD_SECONDS * fps), start_frame + int(MAX_SECONDS * fps))
     boxes = track_boxes(bbox_dirs, row)
-    capture.set(cv2.CAP_PROP_POS_FRAMES, int(round(offset_seconds * fps)) + start_frame - 1)
+    capture.set(cv2.CAP_PROP_POS_FRAMES, round(offset_seconds * fps) + start_frame - 1)
     colour = COLOURS[row["group"]]
     caption = f"{row['country']} | {row['group']} | person {row['person_id']}"
     with tempfile.TemporaryDirectory() as folder:
@@ -116,7 +118,8 @@ def main() -> None:
     arguments = parser.parse_args()
     run = arguments.run.resolve()
     rows = list(csv.DictReader((run / "per_person_results.csv").open(encoding="utf-8", newline="")))
-    chosen = pick(rows, {"unmarked": arguments.unmarked, "marked": arguments.marked, "unconfirmed": arguments.unconfirmed}, arguments.seed)
+    counts = {"unmarked": arguments.unmarked, "marked": arguments.marked, "unconfirmed": arguments.unconfirmed}
+    chosen = pick(rows, counts, arguments.seed)
     chosen.sort(key=lambda row: (row["video_id"], row["start_second"]))
     if not FFMPEG:
         raise SystemExit("ffmpeg is needed to write the clips: install it and put it on the PATH.")
@@ -142,9 +145,18 @@ def main() -> None:
         except Exception as error:  # keep going; list the failure
             print(f"[{number}/{len(chosen)}] FAILED {name}: {type(error).__name__}: {error}")
             continue
-        index.append({"country": row["country"], "group": row["group"], "clip": name, "video_id": row["video_id"],
-                      "source_time_seconds": f"{seconds:.1f}", "youtube": f"https://youtu.be/{row['video_id']}?t={int(seconds)}",
-                      "person_id": row["person_id"], "vlm_reason": row["decision_reason"][:120]})
+        index.append(
+            {
+                "country": row["country"],
+                "group": row["group"],
+                "clip": name,
+                "video_id": row["video_id"],
+                "source_time_seconds": f"{seconds:.1f}",
+                "youtube": f"https://youtu.be/{row['video_id']}?t={int(seconds)}",
+                "person_id": row["person_id"],
+                "vlm_reason": row["decision_reason"][:120],
+            }
+        )
         print(f"[{number}/{len(chosen)}] {name}")
     if downloaded and cached_path:
         cached_path.unlink(missing_ok=True)

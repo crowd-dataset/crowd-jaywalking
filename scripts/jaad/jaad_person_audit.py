@@ -14,15 +14,14 @@ import csv
 import json
 import shutil
 from collections import Counter, defaultdict
-from pathlib import Path
 from typing import Any
 
+from custom_logger import CustomLogger
 from scripts.core.config import ProjectConfig
-from scripts.jaad.jaad import JAADDataset, JAADPedestrianTrack, JAADVideoAnnotations
-from scripts.jaad.jaad_benchmark import box_iou
 from scripts.core.models import BoundingBox, to_jsonable
 from scripts.core.tracking import load_observations_csv, save_observations_csv
-from custom_logger import CustomLogger
+from scripts.jaad.jaad import JAADDataset, JAADPedestrianTrack, JAADVideoAnnotations
+from scripts.jaad.jaad_benchmark import box_iou
 
 logger = CustomLogger(__name__)  # use custom logger
 

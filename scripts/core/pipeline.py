@@ -7,24 +7,24 @@ from pathlib import Path
 from typing import Any
 
 from scripts.core.config import ProjectConfig
-from scripts.crossing.crossing import CrossingDetector
-from scripts.crossing.crossing_classifier import CrossingClassifier
-from scripts.crossing.crossing_gate import CrossingGate
 from scripts.core.evidence import EvidenceBuilder
-from scripts.crossing.model_crossing import ModelCrossingDetector
 from scripts.core.models import (
     ContextAssessment,
     CrossingCheck,
     CrossingEvent,
     DecisionLabel,
-    Ternary,
     PersonDecision,
+    Ternary,
     TrackObservation,
     VideoResult,
 )
 from scripts.core.policy import JaywalkingPolicy
 from scripts.core.tracking import PersonTracker
 from scripts.core.vlm import HuggingFaceContextClassifier
+from scripts.crossing.crossing import CrossingDetector
+from scripts.crossing.crossing_classifier import CrossingClassifier
+from scripts.crossing.crossing_gate import CrossingGate
+from scripts.crossing.model_crossing import ModelCrossingDetector
 
 
 class JaywalkingPipeline:
@@ -51,7 +51,9 @@ class JaywalkingPipeline:
             self._vlm_check = config.crossing_gate_settings()["vlm_check"]
             crowd_city = config.crowd_city_settings()
             if crowd_city["rule"] == "road_crossing":
-                from scripts.crossing.crowd_city_road_rule import CrowdCityRoadCrossingDetector
+                from scripts.crossing.crowd_city_road_rule import (
+                    CrowdCityRoadCrossingDetector,
+                )
 
                 self.crossing_detector = CrowdCityRoadCrossingDetector(crowd_city)
             else:
@@ -156,7 +158,6 @@ class JaywalkingPipeline:
             ]
 
         assessed: list[tuple[CrossingEvent, ContextAssessment]] = []
-        measurements = []
         checks: list[CrossingCheck] = []
         for event, source_name in candidates:
             if not self._context_ready:

@@ -1,8 +1,8 @@
 """Bar plot of the crossings found per country in a CROWD run.
 
-For each country: the crossings detected (stage 1, pedestrians crossing the road) and those at a zebra crossing or traffic light, and those that
-had no zebra crossing, traffic light or crossing sign (stage 2 claims, the label JAYWALKING).
-The country law (stage 3) is not used.
+For each country: the crossings detected (stage 1, pedestrians crossing the road), those at a zebra
+crossing or traffic light, and those that had no zebra crossing, traffic light or crossing sign (stage 2
+claims, the label JAYWALKING). The country law (stage 3) is not used.
 
     uv run python scripts/crowd/plot_country_crossings.py results/six_countries
 """
@@ -50,12 +50,33 @@ def main() -> None:
     arguments = parser.parse_args()
     rows = summarise(arguments.run)
     if arguments.countries:
-        rows = sorted(rows, key=lambda r: arguments.countries.index(r["country"]) if r["country"] in arguments.countries else 99)
+        order = arguments.countries
+        rows = sorted(rows, key=lambda r: order.index(r["country"]) if r["country"] in order else len(order))
     with (arguments.run / "crossings_by_country.csv").open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["country", "segments", "hours", "crossings_detected", "at_zebra_or_light", "not_confirmed_by_vlm", "crossings_without_zebra_or_light"])
+        writer.writerow(
+            [
+                "country",
+                "segments",
+                "hours",
+                "crossings_detected",
+                "at_zebra_or_light",
+                "not_confirmed_by_vlm",
+                "crossings_without_zebra_or_light",
+            ]
+        )
         for r in rows:
-            writer.writerow([r["country"], int(r["segments"]), f"{r['hours']:.2f}", int(r["detected"]), int(r["marked"]), int(r["unconfirmed"]), int(r["unmarked"])])
+            writer.writerow(
+                [
+                    r["country"],
+                    int(r["segments"]),
+                    f"{r['hours']:.2f}",
+                    int(r["detected"]),
+                    int(r["marked"]),
+                    int(r["unconfirmed"]),
+                    int(r["unmarked"]),
+                ]
+            )
 
     names = [str(r["country"]) for r in rows]
     figure, (counts, rates) = plt.subplots(1, 2, figsize=(13, 5), constrained_layout=True)

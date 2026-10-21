@@ -7,28 +7,29 @@ import hashlib
 import json
 import random
 import time
+from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 from urllib.parse import urlparse
 
+from custom_logger import CustomLogger
 from scripts.core.config import ProjectConfig
-from scripts.crowd.crowd_source import (
-    CrowdSegment,
-    CrowdVideoDownloader,
-    PreparedVideo,
-    ftp_credentials,
-    extract_video_segment,
-    find_local_source_video,
-    load_crowd_mapping,
-    probe_video,
-)
-from scripts.crowd.crowd_tracks import find_local_track_file, load_crowd_tracks
 from scripts.core.models import DecisionLabel, to_jsonable
 from scripts.core.pipeline import JaywalkingPipeline
 from scripts.core.tracking import save_observations_csv
 from scripts.core.vlm import prompt_version_for_mode
-from custom_logger import CustomLogger
+from scripts.crowd.crowd_source import (
+    CrowdSegment,
+    CrowdVideoDownloader,
+    PreparedVideo,
+    extract_video_segment,
+    find_local_source_video,
+    ftp_credentials,
+    load_crowd_mapping,
+    probe_video,
+)
+from scripts.crowd.crowd_tracks import find_local_track_file, load_crowd_tracks
 
 logger = CustomLogger(__name__)  # use custom logger
 
@@ -673,9 +674,9 @@ def stratified_audit_sample(
             if sum(item["audit_stratum"] == name for item in output) >= per_stratum:
                 break
 
-    distance = lambda row: abs(
-        float(row["classifier_probability"]) - float(row["classifier_threshold"])
-    )
+    def distance(row: dict[str, Any]) -> float:
+        return abs(float(row["classifier_probability"]) - float(row["classifier_threshold"]))
+
     add(sorted(positives, key=distance), "crossing_near_threshold")
     add(
         sorted(

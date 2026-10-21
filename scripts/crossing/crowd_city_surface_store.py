@@ -4,7 +4,8 @@ Segmenting a segment is the slow part of stage 1, and the labels depend only on 
 tracks and the segmentation settings, so they are kept and reused. The layout follows crowd-city's
 ``utils/segmentation/store.py``: ``index/<stem>.parquet`` (one row per track and sampled frame) and
 ``manifest/<stem>.json`` (the settings and the track ids the index covers). ``<stem>`` is the name
-of the segment's CROWD track CSV without the extension: ``<video_id>_<start_second>_<fps>``, the fps truncated to an integer as CROWD does.
+of the segment's CROWD track CSV without the extension: ``<video_id>_<start_second>_<fps>``, the fps truncated
+to an integer as CROWD does.
 """
 
 from __future__ import annotations
@@ -12,8 +13,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 import polars as pl
 

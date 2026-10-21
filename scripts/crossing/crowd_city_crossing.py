@@ -14,9 +14,6 @@ from typing import Any
 
 import numpy as np
 
-from scripts.crossing import crowd_city_track_joining
-from scripts.crossing.crowd_city_detection import CROSSING_PARAMETER_DEFAULTS, Detection
-from scripts.crossing.model_crossing import ModelCrossingDetectionResult
 from scripts.core.models import (
     CrossingClassification,
     CrossingEvent,
@@ -24,6 +21,9 @@ from scripts.core.models import (
     RejectionReason,
     TrackObservation,
 )
+from scripts.crossing import crowd_city_track_joining
+from scripts.crossing.crowd_city_detection import CROSSING_PARAMETER_DEFAULTS, Detection
+from scripts.crossing.model_crossing import ModelCrossingDetectionResult
 
 # crowd-city's strip and detection filter (analysis.py and default.config).
 STRIP_LEFT = 0.45

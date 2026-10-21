@@ -23,8 +23,9 @@ padding follow ``utils/segmentation/pipeline.py``.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 import numpy as np
 import polars as pl
@@ -32,9 +33,13 @@ import polars as pl
 from custom_logger import CustomLogger
 from scripts.core.models import CrossingClassification, TrackObservation
 from scripts.crossing import crowd_city_road_crossing as rule
-from scripts.crossing import crowd_city_track_joining as joining
 from scripts.crossing import crowd_city_track_metrics as metrics
-from scripts.crossing.crowd_city_camera_shift import CAMERA_SHIFT_HZ, FRAME_HEIGHT, FRAME_WIDTH, background_shift
+from scripts.crossing.crowd_city_camera_shift import (
+    CAMERA_SHIFT_HZ,
+    FRAME_HEIGHT,
+    FRAME_WIDTH,
+    background_shift,
+)
 from scripts.crossing.crowd_city_crossing import (
     CROSSING_PARAMETER_DEFAULTS,
     MIN_CONFIDENCE,
@@ -52,7 +57,11 @@ from scripts.crossing.crowd_city_surface import (
     surface_timeline,
     transition_brackets,
 )
-from scripts.crossing.crowd_city_surface_store import SurfaceStore, segment_stem, track_signature
+from scripts.crossing.crowd_city_surface_store import (
+    SurfaceStore,
+    segment_stem,
+    track_signature,
+)
 from scripts.crossing.model_crossing import ModelCrossingDetectionResult
 
 logger = CustomLogger(__name__)
@@ -105,10 +114,10 @@ class ClipFrames:
     def window(self, window: FrameWindow, fps: float, hz: float, width: int, height: int) -> np.ndarray:
         """Frames at ``window.start_seconds + i / hz``, like extract_window_frames."""
 
-        count = int(math.ceil(window.duration_seconds * hz - 1e-9))
+        count = math.ceil(window.duration_seconds * hz - 1e-9)
         frames = []
         for step in range(max(count, 0)):
-            image = self.frame(int(round((window.start_seconds + step / hz) * fps)), width, height)
+            image = self.frame(round((window.start_seconds + step / hz) * fps), width, height)
             if image is None:
                 break
             frames.append(image)
@@ -188,7 +197,9 @@ class RoadSurfaceReader:
         return self.segmenter
 
     @staticmethod
-    def boxes(tracks: Mapping[str, pl.DataFrame]) -> dict[str, tuple[np.ndarray, dict[int, tuple[float, float, float, float]]]]:
+    def boxes(
+        tracks: Mapping[str, pl.DataFrame],
+    ) -> dict[str, tuple[np.ndarray, dict[int, tuple[float, float, float, float]]]]:
         boxes = {}
         for track_id, track in tracks.items():
             ordered = track.sort("frame-count")
@@ -202,7 +213,7 @@ class RoadSurfaceReader:
         return boxes
 
     def merged_windows(self, boxes: Mapping[str, Any], fps: float) -> list[FrameWindow]:
-        gap_frames = max(1, int(round(TRACK_SPAN_GAP_SECONDS * fps)))
+        gap_frames = max(1, round(TRACK_SPAN_GAP_SECONDS * fps))
         spans: list[tuple[float, float]] = []
         for frames, _ in boxes.values():
             if frames.size == 0:
@@ -211,7 +222,9 @@ class RoadSurfaceReader:
             run_start = run_end = ordered[0]
             for value in ordered[1:]:
                 if value - run_end > gap_frames:
-                    spans.append((max(0.0, run_start / fps - WINDOW_PADDING_SECONDS), run_end / fps + WINDOW_PADDING_SECONDS))
+                    spans.append(
+                        (max(0.0, run_start / fps - WINDOW_PADDING_SECONDS), run_end / fps + WINDOW_PADDING_SECONDS)
+                    )
                     run_start = value
                 run_end = value
             spans.append((max(0.0, run_start / fps - WINDOW_PADDING_SECONDS), run_end / fps + WINDOW_PADDING_SECONDS))
@@ -220,12 +233,14 @@ class RoadSurfaceReader:
             if window.duration_seconds <= MAXIMUM_WINDOW_SECONDS:
                 kept.append(window)
                 continue
-            pieces = int(math.ceil(window.duration_seconds / MAXIMUM_WINDOW_SECONDS))
+            pieces = math.ceil(window.duration_seconds / MAXIMUM_WINDOW_SECONDS)
             length = window.duration_seconds / pieces
             kept.extend(FrameWindow(window.start_seconds + index * length, length) for index in range(pieces))
         return kept
 
-    def sample_windows(self, clip: ClipFrames, fps: float, windows: Sequence[FrameWindow], hz: float, boxes: Mapping[str, Any]) -> list[SurfaceSample]:
+    def sample_windows(
+        self, clip: ClipFrames, fps: float, windows: Sequence[FrameWindow], hz: float, boxes: Mapping[str, Any]
+    ) -> list[SurfaceSample]:
         samples: list[SurfaceSample] = []
         tolerance = fps / (2.0 * hz)
         segmenter = self._segmenter()
@@ -256,10 +271,14 @@ class RoadSurfaceReader:
                         width_fraction=DEFAULT_FOOTPOINT_WIDTH_FRACTION,
                         minimum_confidence=self.minimum_confidence,
                     )
-                    samples.append(SurfaceSample(track_id, int(track_frames[matched]), float(video_time), surface, float(score)))
+                    samples.append(
+                        SurfaceSample(track_id, int(track_frames[matched]), float(video_time), surface, float(score))
+                    )
         return samples
 
-    def timelines(self, clip: ClipFrames, fps: float, tracks: Mapping[str, pl.DataFrame]) -> dict[str, list[SurfaceSample]]:
+    def timelines(
+        self, clip: ClipFrames, fps: float, tracks: Mapping[str, pl.DataFrame]
+    ) -> dict[str, list[SurfaceSample]]:
         use_store = self.store is not None and self.stem is not None and bool(tracks)
         if use_store:
             signatures = {str(key): track_signature(value) for key, value in tracks.items()}
@@ -271,7 +290,9 @@ class RoadSurfaceReader:
             self.store.save(self.stem, self._store_settings(), signatures, result)
         return result
 
-    def _compute_timelines(self, clip: ClipFrames, fps: float, tracks: Mapping[str, pl.DataFrame]) -> dict[str, list[SurfaceSample]]:
+    def _compute_timelines(
+        self, clip: ClipFrames, fps: float, tracks: Mapping[str, pl.DataFrame]
+    ) -> dict[str, list[SurfaceSample]]:
         boxes = self.boxes(tracks)
         if not boxes:
             return {}
@@ -304,7 +325,9 @@ class RoadSurfaceReader:
         return background_shift(frames)
 
 
-def crossing_tracks(df: pl.DataFrame, track_ids: Sequence[Any], bounds: Mapping[Any, tuple[int, int]]) -> dict[str, pl.DataFrame]:
+def crossing_tracks(
+    df: pl.DataFrame, track_ids: Sequence[Any], bounds: Mapping[Any, tuple[int, int]]
+) -> dict[str, pl.DataFrame]:
     """Detection rows of each candidate, restricted to its own frame range (crowd-city's _crossing_tracks)."""
 
     wanted = {str(value) for value in track_ids}
@@ -334,7 +357,9 @@ class CrowdCityRoadCrossingDetector(CrowdCityCrossingDetector):
         self.rule_settings = dict(settings)
         self.reader = RoadSurfaceReader(self.rule_settings, segmenter)
 
-    def detect(self, observations: list[TrackObservation], fps: float, video_path: Any = None) -> ModelCrossingDetectionResult:
+    def detect(
+        self, observations: list[TrackObservation], fps: float, video_path: Any = None
+    ) -> ModelCrossingDetectionResult:
         confident = [o for o in observations if o.confidence >= MIN_CONFIDENCE]
         if video_path is None or not any(o.class_id == PERSON_CLASS for o in confident):
             return ModelCrossingDetectionResult([], [], [])
@@ -344,11 +369,10 @@ class CrowdCityRoadCrossingDetector(CrowdCityCrossingDetector):
 
         # Step 2: box candidates (crowd-city's _road_crossing_candidates).
         person_ids = df.filter(pl.col("yolo-id") == PERSON_CLASS).get_column("unique-id").unique().to_list()
+        person_rows = df.filter(pl.col("unique-id").is_in(person_ids)).sort(["unique-id", "frame-count"])
         track_index = {
             track.get_column("unique-id")[0]: track
-            for track in df.filter(pl.col("unique-id").is_in(person_ids)).sort(["unique-id", "frame-count"]).partition_by(
-                "unique-id", maintain_order=True
-            )
+            for track in person_rows.partition_by("unique-id", maintain_order=True)
         }
         rows, scene_profile = metrics.rows_and_scene_profile(df, fps)
         person_tracks = metrics.group_tracks(row for row in rows if row.class_id == metrics.PERSON_CLASS_ID)
@@ -421,7 +445,10 @@ class CrowdCityRoadCrossingDetector(CrowdCityCrossingDetector):
         bounds_by_id = {int(float(key)): value for key, value in bounds.items()}
         for track_id in sorted(int(float(value)) for value in ids):
             start, end = (int(v) for v in bounds_by_id[track_id])
-            track_rows = sorted((o for o in by_track.get(track_id, []) if start <= o.frame_index <= end), key=lambda o: o.frame_index)
+            track_rows = sorted(
+                (o for o in by_track.get(track_id, []) if start <= o.frame_index <= end),
+                key=lambda o: o.frame_index,
+            )
             if not track_rows:
                 continue
             valid = track_id in selected
@@ -447,4 +474,3 @@ class CrowdCityRoadCrossingDetector(CrowdCityCrossingDetector):
         accepted.sort(key=lambda e: (e.start_frame, e.person_id))
         rejected.sort(key=lambda e: (e.start_frame, e.person_id))
         return ModelCrossingDetectionResult(accepted, rejected, classifications)
-

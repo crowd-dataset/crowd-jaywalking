@@ -15,16 +15,24 @@ steps, all copied from crowd-city at commit 340875e and run here in the same ord
    (``swept_by_turning_camera``) and an unverifiable fast mover is dropped
    (``unverifiable_crossing``).
 
-Only crowd-city's frame reading differs: it decodes windows with ffmpeg from the CROWD file
-server, this module reads the local clip with OpenCV. The sampling grid, windows and
-padding follow ``utils/segmentation/pipeline.py``.
+For a CROWD segment the frames are read exactly as crowd-city reads them: ffmpeg decodes the
+segment's original video (the same file crowd-city reads from the CROWD file server) at times
+on the whole video's clock, with crowd-city's own filter chain (``SourceFrames``). The labels
+then go into the surface store shared with crowd-city (``crowd_city_surface_store``), so a
+segment segmented by either project is not segmented again by the other. Any other clip (JAAD,
+a cut segment with no source given) is read with OpenCV and its labels are never stored. The
+sampling grid, windows and padding follow ``utils/segmentation/pipeline.py``.
 """
 
 from __future__ import annotations
 
+import json
 import math
+import shutil
+import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -59,7 +67,8 @@ from scripts.crossing.crowd_city_surface import (
 )
 from scripts.crossing.crowd_city_surface_store import (
     SurfaceStore,
-    segment_stem,
+    canonical_track_id,
+    store_settings,
     track_signature,
 )
 from scripts.crossing.model_crossing import ModelCrossingDetectionResult
@@ -126,6 +135,86 @@ class ClipFrames:
         return np.stack(frames)
 
 
+def _frame_rate(text: Any) -> float | None:
+    value = str(text or "").strip()
+    try:
+        if "/" in value:
+            numerator, denominator = value.split("/", 1)
+            rate = float(numerator) / float(denominator)
+        else:
+            rate = float(value)
+    except (ValueError, ZeroDivisionError):
+        return None
+    return rate if math.isfinite(rate) and rate > 0 else None
+
+
+def probe_video_fps(path: Any) -> float | None:
+    """The video's average frame rate from ffprobe, as crowd-city's frames.probe_video_fps."""
+
+    command = [
+        shutil.which("ffprobe") or "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream=avg_frame_rate,r_frame_rate", "-of", "json", str(path),
+    ]
+    try:
+        completed = subprocess.run(command, capture_output=True, timeout=60, check=False)
+        streams = json.loads(completed.stdout.decode("utf-8")).get("streams") or []
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return None
+    if completed.returncode != 0 or not streams:
+        return None
+    return _frame_rate(streams[0].get("avg_frame_rate")) or _frame_rate(streams[0].get("r_frame_rate"))
+
+
+class SourceFrames:
+    """Frames of one CROWD segment read from its original video, exactly as crowd-city reads them.
+
+    Windows are given in seconds from the segment start, like ``ClipFrames``; frames are decoded
+    at ``start_seconds`` later on the original video with crowd-city's ffmpeg call
+    (``utils/segmentation/frames.py``, ``extract_window_frames``), so the pixels SegFormer sees
+    are the ones crowd-city's pipeline sees.
+    """
+
+    def __init__(self, path: Any, start_seconds: float) -> None:
+        self.path = Path(path)
+        if not self.path.is_file():
+            raise RuntimeError(f"Cannot open the video: {path}")
+        self.start_seconds = float(start_seconds)
+        # The detection frame-count advances once per decoded frame, so frames map to time at the
+        # video's real rate (crowd-city's FrameClock).
+        self.video_fps = probe_video_fps(self.path)
+        self.ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
+
+    def close(self) -> None:
+        pass
+
+    def window(self, window: FrameWindow, fps: float, hz: float, width: int, height: int) -> np.ndarray:
+        """Frames at ``window.start_seconds + i / hz`` after the segment start."""
+
+        if window.duration_seconds <= 0 or hz <= 0:
+            return np.zeros((0, height, width, 3), dtype=np.uint8)
+        command = [
+            self.ffmpeg, "-nostdin", "-loglevel", "error",
+            "-ss", f"{float(self.start_seconds + window.start_seconds):.3f}",
+            "-i", str(self.path),
+            "-t", f"{float(window.duration_seconds):.3f}",
+            "-an", "-sn",
+            "-vf", f"fps={float(hz):g},scale={int(width)}:{int(height)}",
+            "-pix_fmt", "rgb24",
+            "-f", "rawvideo",
+            "-",
+        ]
+        completed = subprocess.run(command, capture_output=True, timeout=600, check=False)
+        if completed.returncode != 0:
+            # Raised rather than returning no frames, so nothing is stored as if the window were empty.
+            problem = completed.stderr.decode("utf-8", errors="replace").strip()
+            raise RuntimeError(f"ffmpeg could not read {window.duration_seconds:.1f}s of {self.path}: {problem}")
+        frame_bytes = int(width) * int(height) * 3
+        usable = (len(completed.stdout) // frame_bytes) * frame_bytes
+        if usable == 0:
+            return np.zeros((0, height, width, 3), dtype=np.uint8)
+        return np.frombuffer(completed.stdout[:usable], dtype=np.uint8).reshape(-1, int(height), int(width), 3)
+
+
 def merge_spans(spans: list[tuple[float, float]]) -> list[FrameWindow]:
     """Collapse overlapping or nearly adjacent time spans into windows."""
 
@@ -168,20 +257,22 @@ class RoadSurfaceReader:
         root = settings.get("segmentation_store")
         self.store = SurfaceStore(root) if root else None
         self.stem: str | None = None
+        # Facts about the segment written to its manifest with the labels (video id, frame rates).
+        self.segment_facts: dict[str, Any] = {}
 
     def _store_settings(self) -> dict[str, Any]:
-        """Everything that changes the meaning of a stored surface label."""
+        """Everything that changes the meaning of a stored surface label (crowd-city's settings)."""
 
-        return {
-            "model": str(self.settings["segmentation_model"]),
-            "input_width": int(self.settings["segmentation_input_width"]),
-            "input_height": int(self.settings["segmentation_input_height"]),
-            "coarse_hz": self.coarse_hz,
-            "refine_hz": self.refine_hz,
-            "footpoint_band_fraction": DEFAULT_FOOTPOINT_BAND_FRACTION,
-            "footpoint_width_fraction": DEFAULT_FOOTPOINT_WIDTH_FRACTION,
-            "minimum_confidence": self.minimum_confidence,
-        }
+        return store_settings(
+            str(self.settings["segmentation_model"]),
+            int(self.settings["segmentation_input_width"]),
+            int(self.settings["segmentation_input_height"]),
+            self.coarse_hz,
+            self.refine_hz,
+            DEFAULT_FOOTPOINT_BAND_FRACTION,
+            DEFAULT_FOOTPOINT_WIDTH_FRACTION,
+            self.minimum_confidence,
+        )
 
     def _segmenter(self) -> Any:
         if self.segmenter is None:
@@ -244,9 +335,12 @@ class RoadSurfaceReader:
         samples: list[SurfaceSample] = []
         tolerance = fps / (2.0 * hz)
         segmenter = self._segmenter()
+        # Seconds from the start of the whole video to the start of this clip (0 for a local clip).
+        offset_seconds = float(getattr(clip, "start_seconds", 0.0))
         for window in windows:
-            # A fixed grid of video time, so a track's samples do not depend on its neighbours.
-            grid_start = math.floor(window.start_seconds * hz) / hz
+            # A fixed grid of the whole video's time, as crowd-city samples, so a track's samples
+            # do not depend on its neighbours and match crowd-city's.
+            grid_start = math.floor((offset_seconds + window.start_seconds) * hz) / hz - offset_seconds
             window = FrameWindow(grid_start, window.start_seconds + window.duration_seconds - grid_start)
             frames = clip.window(window, fps, hz, segmenter.input_width, segmenter.input_height)
             if len(frames) == 0:
@@ -272,22 +366,52 @@ class RoadSurfaceReader:
                         minimum_confidence=self.minimum_confidence,
                     )
                     samples.append(
-                        SurfaceSample(track_id, int(track_frames[matched]), float(video_time), surface, float(score))
+                        SurfaceSample(
+                            track_id, int(track_frames[matched]), float(offset_seconds + video_time),
+                            surface, float(score),
+                        )
                     )
         return samples
 
     def timelines(
-        self, clip: ClipFrames, fps: float, tracks: Mapping[str, pl.DataFrame]
+        self, clip: ClipFrames | SourceFrames, fps: float, tracks: Mapping[str, pl.DataFrame]
     ) -> dict[str, list[SurfaceSample]]:
-        use_store = self.store is not None and self.stem is not None and bool(tracks)
-        if use_store:
-            signatures = {str(key): track_signature(value) for key, value in tracks.items()}
-            stored = self.store.load(self.stem, self._store_settings(), signatures)
-            if stored is not None:
-                return stored
-        result = self._compute_timelines(clip, fps, tracks)
-        if use_store:
-            self.store.save(self.stem, self._store_settings(), signatures, result)
+        """Surface samples per track, segmenting only the tracks the shared store lacks."""
+
+        # Detection frames map to time at the video's real rate when it is known (crowd-city's clock).
+        fps = float(getattr(clip, "video_fps", None) or fps)
+        if not (self.store is not None and self.stem is not None and tracks):
+            return self._compute_timelines(clip, fps, tracks)
+        settings = self._store_settings()
+        # The store holds CROWD's own frame-count, which starts at 1 where this project's frames start
+        # at 0 (crowd_tracks.FIRST_FRAME_COUNT); shift at the boundary so crowd-city reads the same frames.
+        shift = int(self.segment_facts.get("first_frame_number", 0))
+        original = {canonical_track_id(key): str(key) for key in tracks}
+        signatures = {
+            canonical_track_id(key): track_signature(value.with_columns(pl.col("frame-count") + shift))
+            for key, value in tracks.items()
+        }
+        stored = self.store.load(self.stem, settings, signatures)
+        missing = {key: value for key, value in tracks.items() if canonical_track_id(key) not in stored}
+        computed = self._compute_timelines(clip, fps, missing) if missing else {}
+        if missing:
+            self.store.save(
+                self.stem, settings,
+                {canonical_track_id(key): signatures[canonical_track_id(key)] for key in missing},
+                {
+                    key: [SurfaceSample(s.track_id, s.frame + shift, s.video_time_s, s.surface, s.confidence)
+                          for s in samples]
+                    for key, samples in computed.items()
+                },
+                extra={**self.segment_facts, "video_fps": fps},
+            )
+        result: dict[str, list[SurfaceSample]] = {}
+        for track_id, samples in stored.items():
+            result[original[track_id]] = [
+                SurfaceSample(original[track_id], s.frame - shift, s.video_time_s, s.surface, s.confidence)
+                for s in samples
+            ]
+        result.update({str(key): list(value) for key, value in computed.items()})
         return result
 
     def _compute_timelines(
@@ -313,9 +437,12 @@ class RoadSurfaceReader:
         return surface_timeline(samples)
 
     @staticmethod
-    def camera_shift(clip: ClipFrames, fps: float, first_frame: float, last_frame: float) -> float | None:
+    def camera_shift(
+        clip: ClipFrames | SourceFrames, fps: float, first_frame: float, last_frame: float
+    ) -> float | None:
         """How far the background slides sideways between two frames, in image widths."""
 
+        fps = float(getattr(clip, "video_fps", None) or fps)
         start, end = first_frame / fps, last_frame / fps
         if end <= start:
             return 0.0
@@ -356,6 +483,25 @@ class CrowdCityRoadCrossingDetector(CrowdCityCrossingDetector):
         super().__init__({"track_joining": True})
         self.rule_settings = dict(settings)
         self.reader = RoadSurfaceReader(self.rule_settings, segmenter)
+        # Set by use_segment_source for the CROWD segment about to be detected; None for other clips.
+        self.segment_source: dict[str, Any] | None = None
+
+    def use_segment_source(
+        self, path: Any, start_seconds: float, stem: str, facts: Mapping[str, Any] | None = None
+    ) -> None:
+        """Read the next clip's frames from its original video and share its labels under ``stem``.
+
+        ``path`` is the whole CROWD video the segment was cut from, ``start_seconds`` the segment's
+        start in it, ``stem`` the segment's CROWD detection file name without extension. Call
+        ``clear_segment_source`` after the clip.
+        """
+
+        self.segment_source = {
+            "path": path, "start_seconds": float(start_seconds), "stem": str(stem), "facts": dict(facts or {}),
+        }
+
+    def clear_segment_source(self) -> None:
+        self.segment_source = None
 
     def detect(
         self, observations: list[TrackObservation], fps: float, video_path: Any = None
@@ -399,9 +545,17 @@ class CrowdCityRoadCrossingDetector(CrowdCityCrossingDetector):
 
         # Steps 3 and 4: the feet on the road, walking, and the picture itself (crossing_pass.select_road_crossings).
         tracks = crossing_tracks(df, ids, bounds)
-        clip = ClipFrames(video_path)
+        source = self.segment_source
+        if source is not None:
+            # A CROWD segment with its original video: read as crowd-city reads it and share labels.
+            clip = SourceFrames(source["path"], source["start_seconds"])
+            self.reader.stem = source["stem"]
+            self.reader.segment_facts = dict(source.get("facts") or {})
+        else:
+            clip = ClipFrames(video_path)
+            self.reader.stem = None
+            self.reader.segment_facts = {}
         try:
-            self.reader.stem = segment_stem(video_path, fps)
             timelines = self.reader.timelines(clip, fps, tracks)
             intervals = rule.road_intervals_for_tracks(timelines)
             rates = {str(key): value for key, value in size_rates.items()}

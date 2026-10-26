@@ -29,7 +29,7 @@ from scripts.crowd.crowd_source import (
     load_crowd_mapping,
     probe_video,
 )
-from scripts.crowd.crowd_tracks import find_local_track_file, load_crowd_tracks
+from scripts.crowd.crowd_tracks import FIRST_FRAME_COUNT, find_local_track_file, load_crowd_tracks
 
 logger = CustomLogger(__name__)  # use custom logger
 
@@ -272,13 +272,40 @@ class CrowdAnalysisRunner:
                     tracking_path = save_observations_csv(
                         self.tracking / f"{segment.video_key}.csv", observations
                     )
-                    result = pipeline.process_observations(
-                        segment_video.path,
-                        self.evidence,
-                        fps,
-                        observations,
-                        started=started,
-                    )
+                    detector = pipeline.crossing_detector
+                    if hasattr(detector, "use_segment_source"):
+                        # Segment from the original video, as crowd-city does, so the surface labels
+                        # are shared with crowd-city under the detection file's name.
+                        video_id = segment.video_id.removesuffix(".mp4")
+                        stem = (
+                            track_file.stem if track_file is not None
+                            else f"{video_id}_{segment.start_second}_{int(round(float(fps)))}"
+                        )
+                        detector.use_segment_source(
+                            prepared.path,
+                            segment.start_second,
+                            stem,
+                            facts={
+                                "video_id": video_id,
+                                "start_seconds": float(segment.start_second),
+                                "detection_fps": float(fps),
+                                "source_fps": float(stem.rsplit("_", 1)[-1]),
+                                "first_source_frame": 0,
+                                # CROWD's frame-count of the segment's first frame (crowd_tracks).
+                                "first_frame_number": FIRST_FRAME_COUNT,
+                            },
+                        )
+                    try:
+                        result = pipeline.process_observations(
+                            segment_video.path,
+                            self.evidence,
+                            fps,
+                            observations,
+                            started=started,
+                        )
+                    finally:
+                        if hasattr(detector, "clear_segment_source"):
+                            detector.clear_segment_source()
                     result = replace(
                         result,
                         latency_seconds=round(time.perf_counter() - started, 2),

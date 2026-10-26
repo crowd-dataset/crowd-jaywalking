@@ -205,7 +205,7 @@ Edit `config` for paths and runs. When `default.config` gains settings, add them
 | Crossings per country | `uv run python scripts/crowd/plot_country_crossings.py <results folder>` | Writes `crossings_by_country.png` and `.csv` into the results folder |
 | Total against jaywalking crossings | `uv run python scripts/crowd/plot_crossing_scatter.py <results folder> [<results folder> ...]` | Scatter plot, one point per country, over one or more runs; `--per-hour` divides both axes by the hours of footage; `--output` sets the file |
 | Clips to check by eye | `uv run python scripts/crowd/make_verification_clips.py <results folder>` | A random sample per country of crossings without zebra crossing or light, at one, and not confirmed, as clips with the person's box; `index.csv` links each to YouTube |
-| Share the surface labels | `uv run python scripts/crowd/sync_segmentation.py pull` or `push` | Copies `crowd_city_segmentation_store` to or from the CROWD server's disk (password in `secret` as `crowd_tue3_ssh_password`) |
+| Share the surface labels | `uv run python scripts/crowd/sync_segmentation.py pull` or `push` | Merges `crowd_city_segmentation_store` with crowd-city's store folder on the CROWD server's disk (`pedestrians_in-youtube/seg`, crowd-city's `seg_data`), so a segment either project has segmented is not segmented again by the other. Tracks one side lacks are added to both; nothing is overwritten or deleted. Password in `secret` as `crowd_tue3_ssh_password` |
 | Stage 1 alone against JAAD | `uv run python -u .\scripts\crossing\evaluate_crowd_city_crossing.py` | No VLM. Writes `<results>/crowd_city_stage1/summary.json` (precision and recall of crowd-city's decision on all three splits) |
 | Stage 3 (law) | `uv run python .\scripts\law\run_jaywalking_law.py <results folder>` | CROWD takes the country from `mapping.csv`; for JAAD add `--country CAN` (repeatable) |
 | Approach review | `uv run python .\scripts\review\run_approach_review.py <results folder>` | After a run, before or after stage 3: flags claims with a zebra crossing on the road ahead in the seconds before the crossing, for a manual look. Changes nothing; see [Outputs](#outputs) |
@@ -328,7 +328,7 @@ Settings live in two places. Paths are relative to the repository root unless ab
 | `crowd_city_segmentation_input_width`, `crowd_city_segmentation_input_height` | `1024`, `512` | Frame size fed to SegFormer |
 | `crowd_city_segmentation_min_confidence` | `0.5` | Minimum SegFormer confidence of a pixel to count toward the surface under the feet |
 | `crowd_city_segmentation_coarse_hz`, `crowd_city_segmentation_refine_hz` | `1`, `4` | Frames per second sampled along a track, and around the moments it enters and leaves the road |
-| `crowd_city_segmentation_store` | `"data/crowd_segmentation"` | Where the SegFormer surface labels of each CROWD segment are kept (crowd-city's layout: `index/<video>_<start>_<fps>.parquet`, `manifest/*.json`), so a segment is segmented once; `null` keeps none. Share them with `scripts/crowd/sync_segmentation.py` |
+| `crowd_city_segmentation_store` | `"data/crowd_segmentation"` | Where the SegFormer surface labels of each CROWD segment are kept, in crowd-city's store format (v5: `index/<video>_<start>_<fps>.parquet` and `manifest/*.json`, one entry per CROWD detection file), so a segment is segmented once, by this project or by crowd-city; `null` keeps none. Share it with crowd-city through `scripts/crowd/sync_segmentation.py` |
 
 #### Classifier mode (`crossing_decision_mode: "classifier"`)
 

@@ -285,6 +285,8 @@ Settings live in two places. Paths are relative to the repository root unless ab
 | `crowd_download_dir` | `"data/crowd_downloads"` | Where downloaded source videos are kept |
 | `crowd_delete_downloaded_base_videos` | `false` | Delete a source video once its segments are processed |
 | `crowd_keep_segment_videos` | `true` | Keep the cut segment videos |
+| `crowd_keep_evidence` | `true` | Keep each segment's evidence frames and crops; `false` deletes them once the segment's details are saved (the tables and plots need only `details/`) |
+| `crowd_keep_tracking` | `true` | Keep each segment's track CSV; `false` deletes it once the details are saved |
 | `crowd_tracks_source` | `"precomputed"` | `"precomputed"`: CROWD's own track CSVs (`frame-count` 1 is the first frame of the segment). `"tracking"`: track each segment again with `tracking_model` |
 | `crowd_bbox_dirs` | `["/media/salam/crowd-tue-3/pedestrians_in-youtube/data/bbox"]` | Local `bbox` folders searched first; missing folders are skipped. List of paths, may be empty |
 | `crowd_bbox_ftp_folder` | `"pedestrians_in-youtube/data/bbox"` | The `bbox` folder on the file server, relative to each alias (`v/<alias>/files/<folder>/<name>.csv`); `""` disables downloading |

@@ -117,6 +117,8 @@ RESULT_NEUTRAL_KEYS = (
     "crowd_vehicle_types",
     "crowd_selection",
     "crowd_keep_claim_segment_videos",
+    "crowd_keep_evidence",
+    "crowd_keep_tracking",
     "jaad_video_id",
     "approach_review_seconds",
     "approach_review_end_seconds",
@@ -464,6 +466,8 @@ class ProjectConfig:
             ),
             "keep_segment_videos": bool(value("crowd_keep_segment_videos")),
             "keep_claim_segment_videos": bool(value("crowd_keep_claim_segment_videos")),
+            "keep_evidence": bool(value("crowd_keep_evidence")),
+            "keep_tracking": bool(value("crowd_keep_tracking")),
             "selection": self._crowd_selection(),
             "max_segments": int(value("crowd_max_segments")),
             "vehicle_types": self._vehicle_types(),
@@ -737,6 +741,8 @@ class ProjectConfig:
             "crowd_resume",
             "crowd_delete_downloaded_base_videos",
             "crowd_keep_segment_videos",
+            "crowd_keep_evidence",
+            "crowd_keep_tracking",
         ):
             value = self.get(name)
             if not isinstance(value, bool):

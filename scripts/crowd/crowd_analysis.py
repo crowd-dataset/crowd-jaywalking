@@ -6,6 +6,7 @@ import csv
 import hashlib
 import json
 import random
+import shutil
 import time
 from collections.abc import Iterable
 from dataclasses import replace
@@ -330,6 +331,11 @@ class CrowdAnalysisRunner:
                         "result": to_jsonable(result),
                     }
                     self._write_json(detail_path, payload)
+                    # The tables and plots are rebuilt from the details alone.
+                    if not self.settings["keep_evidence"]:
+                        shutil.rmtree(self.evidence / segment.video_key, ignore_errors=True)
+                    if not self.settings["keep_tracking"]:
+                        tracking_path.unlink(missing_ok=True)
                     has_claim = any(item.label.value == "JAYWALKING" for item in result.person_decisions)
                     if not self.settings["keep_segment_videos"] and not (
                         has_claim and self.settings.get("keep_claim_segment_videos")

@@ -99,7 +99,8 @@ def main() -> None:
         axis.set_ylabel(label)
         axis.set_title(title)
         axis.spines[["top", "right"]].set_visible(False)
-    counts.legend(frameon=False)
+    counts.margins(y=0.15)
+    counts.legend(frameon=False, loc="upper center", ncol=1, bbox_to_anchor=(0.5, 1.0))
     figure.suptitle("Pedestrians crossing the road, daytime dashcam footage")
     output = arguments.run / "crossings_by_country.png"
     figure.savefig(output, dpi=160)

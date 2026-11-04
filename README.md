@@ -126,18 +126,18 @@ On all three JAAD splits (train, val, and test; 309 videos):
 
 ### Crossings by country (CROWD samples, stages 1 and 2)
 
-Random samples of daytime footage filmed from a car, run through stages 1 and 2 with the VLM in 4-bit mode (`scripts/crowd/select_country_sample.py`, seed 0). The country law (stage 3) is not used. A crossing counts as
+Daytime footage filmed from a car, run through stages 1 and 2 with the VLM in 4-bit mode (`scripts/crowd/select_country_sample.py`, seed 0). The six-country run fills each country to about 100 hours from its capital first (`--capitals-first`: whole source videos in random order), and only when the capital has too few hours from the next biggest cities. The country law (stage 3) is not used. A crossing counts as
 **without zebra crossing or traffic light** (jaywalking in the table) when stage 1 finds it and the VLM confirms it as a crossing and finds neither a zebra crossing, a traffic light
-nor a crossing sign. Two runs: about 100 hours over China, Japan, Bangladesh, France, Sweden and Denmark (16 to 17 hours each, 338 segments), and 100 hours each for South Korea and Vietnam (515 segments).
+nor a crossing sign. Two runs: about 100 hours each over China, Japan, Bangladesh, France, Sweden and Denmark (1,642 of 1,689 segments finished), and 100 hours each for South Korea and Vietnam, a random sample (515 segments, run earlier).
 
 | Country | Hours | Crossings detected (stage 1) | At a zebra crossing or light | Not confirmed by the VLM | Jaywalking | Jaywalking per hour |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| China | 16.0 | 247 | 218 | 29 | 0 | 0.00 |
-| Japan | 16.2 | 64 | 54 | 10 | 0 | 0.00 |
-| Bangladesh | 16.9 | 299 | 16 | 204 | **79** | **4.68** |
-| France | 16.9 | 527 | 453 | 66 | 8 | 0.47 |
-| Sweden | 17.2 | 386 | 339 | 45 | 2 | 0.12 |
-| Denmark | 17.3 | 410 | 346 | 62 | 2 | 0.12 |
+| China | 96.3 | 2110 | 1865 | 234 | 11 | 0.11 |
+| Japan | 100.6 | 3878 | 3604 | 267 | 7 | 0.07 |
+| Bangladesh | 92.2 | 2102 | 101 | 1399 | **596** | **6.46** |
+| France | 96.4 | 3551 | 2915 | 592 | 40 | 0.42 |
+| Sweden | 99.1 | 2318 | 1930 | 336 | 40 | 0.40 |
+| Denmark | 97.3 | 2854 | 2348 | 470 | 28 | 0.29 |
 | South Korea | 100.1 | 1344 | 1191 | 145 | 7 | 0.07 |
 | Vietnam | 100.0 | 749 | 198 | 464 | **84** | **0.84** |
 
@@ -155,10 +155,10 @@ Per country, the crossings detected, those at a zebra crossing or light, and the
 
 ![Crossings per country, South Korea and Vietnam](docs/images/korea_vietnam_crossings.png)
 
-* The three right-hand counts add up to the detected crossings, except for 4 crossings the VLM left `UNCERTAIN` (1 in South Korea, 3 in Vietnam). A crossing the VLM crossing check does not confirm is never judged for a zebra crossing or light, so it counts in neither of the other two columns. The jaywalking column is therefore a lower bound if the VLM wrongly rejected real crossings; Bangladesh (204 of 299) and Vietnam (464 of 749) have the most.
-* Bangladesh stands out with 4.7 jaywalking crossings per hour of footage, then Vietnam with 0.8; the other six countries have 0.5 or fewer. South Korea has the most crossings of all (1344) but almost all are at a zebra crossing or a traffic light. In China and Japan every crossing the VLM confirmed was at a zebra crossing or a traffic light.
-* 338 of 341 segments of the first run finished (one had no precomputed track file, one yielded no video frames, one is missing); all 515 of the second finished.
-* The samples are random over the daytime car footage of each country, so large cities dominate (Paris, Stockholm, Copenhagen, Sylhet, Guangzhou). The counts are not checked by hand; `scripts/crowd/make_verification_clips.py` cuts a random sample of clips, with the person's box drawn, to check them by eye.
+* The three right-hand counts add up to the detected crossings, except for 34 crossings the VLM left `UNCERTAIN` (30 in the six-country run: Sweden 12, Denmark 8, Bangladesh 6, France 4; 1 in South Korea, 3 in Vietnam). A crossing the VLM crossing check does not confirm is never judged for a zebra crossing or light, so it counts in neither of the other two columns. The jaywalking column is therefore a lower bound if the VLM wrongly rejected real crossings; Bangladesh (1399 of 2102) and Vietnam (464 of 749) have the most.
+* Bangladesh stands out with 6.5 jaywalking crossings per hour of footage, then Vietnam with 0.8; the other six countries have 0.5 or fewer. Japan has the most crossings of all (3878) and France the next most (3551), almost all at a zebra crossing or a traffic light; the per-hour rates are much higher than in the earlier 17-hour samples because the sample is now dominated by dense capitals. Bangladesh has only about 96 hours of daytime car footage in the mapping and only 12.6 of them are Dhaka (Sylhet has 69), so its rate describes Sylhet more than the capital.
+* 1,642 of 1,689 segments of the six-country run finished; 47 failed after a retry (22 without a precomputed track file, 15 whose video could not be opened, 10 server download errors), which is why China, France and Bangladesh are a few hours under 100 (the failed segments are listed in `errors.csv`). All 515 segments of the South Korea and Vietnam run finished.
+* The six-country hours are Tokyo 100.6; Paris 100.0; Copenhagen 100.2; Stockholm 98.5 and Gothenburg 1.6; Beijing 45.6, Shanghai 34.2 and Shenzhen 20.3; Sylhet, Dhaka and 22 other Bangladeshi towns (selected hours, before failures). The counts are not checked by hand; `scripts/crowd/make_verification_clips.py` cuts a random sample of clips, with the person's box drawn, to check them by eye.
 * "Korea" is South Korea; North Korea has only 2.4 hours of footage in the mapping.
 
 ## Setup

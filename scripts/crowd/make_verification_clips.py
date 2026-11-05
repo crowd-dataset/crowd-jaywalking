@@ -3,7 +3,7 @@
 Per country it takes a random sample from each group of stage 1 crossings:
   unmarked     the VLM says: crosses, no zebra crossing, traffic light or sign (label JAYWALKING)
   marked       crosses at a zebra crossing or traffic light (label COMPLIANT)
-  unconfirmed  stage 1 found a crossing but the VLM check did not confirm it (NOT_EVALUATED)
+  unconfirmed  stage 1 found a crossing but the VLM check answered NO, not a crossing (NOT_EVALUATED)
 The clip covers the track plus a little before and after, with the person's box drawn on it and a
 caption. ``index.csv`` lists every clip with a link to the same moment on YouTube.
 
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import random
 import shutil
 import subprocess
@@ -38,17 +39,32 @@ MAX_SECONDS = 14.0
 COLOURS = {"unmarked": (60, 60, 255), "marked": (80, 200, 80), "unconfirmed": (0, 200, 255)}
 
 
-def pick(rows: list[dict[str, str]], counts: dict[str, int], seed: int) -> list[dict[str, str]]:
+def pick(
+    rows: list[dict[str, str]], counts: dict[str, int], seed: int, skip: frozenset[str] = frozenset()
+) -> list[dict[str, str]]:
     rng = random.Random(seed)
     by_group: dict[tuple[str, str], list[dict[str, str]]] = defaultdict(list)
     for row in rows:
-        if row["predicted_crossing"] == "True" and row["jaywalking_label"] in GROUPS:
+        if row["predicted_crossing"] == "True" and row["jaywalking_label"] in GROUPS and row["video_id"] not in skip:
             by_group[(row["country"], GROUPS[row["jaywalking_label"]])].append(row)
     chosen = []
     for (country, group), items in sorted(by_group.items()):
         rng.shuffle(items)
         chosen.extend(dict(item, group=group) for item in items[: counts[group]])
     return chosen
+
+
+def check_summary(run: Path, row: dict[str, str]) -> str:
+    """The VLM crossing check's explanation of its answer (the per-person table has none for a NO)."""
+
+    try:
+        payload = json.loads((run / "details" / f"{row['video_key']}.json").read_text(encoding="utf-8"))
+    except OSError:
+        return ""
+    for check in payload["result"].get("crossing_checks", []):
+        if str(check["person_id"]) == row["person_id"]:
+            return f"{check['answer']}: {check['evidence_summary']}"
+    return ""
 
 
 def track_boxes(bbox_dirs: list[Path], row: dict[str, str]) -> dict[int, tuple[float, float, float, float]]:
@@ -114,12 +130,13 @@ def main() -> None:
     parser.add_argument("--marked", type=int, default=4)
     parser.add_argument("--unconfirmed", type=int, default=6)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--skip-video", nargs="*", default=[], help="video ids not to use, such as a huge source")
     parser.add_argument("--output", type=Path, help="clip folder (default: <run>/verification_clips)")
     arguments = parser.parse_args()
     run = arguments.run.resolve()
     rows = list(csv.DictReader((run / "per_person_results.csv").open(encoding="utf-8", newline="")))
     counts = {"unmarked": arguments.unmarked, "marked": arguments.marked, "unconfirmed": arguments.unconfirmed}
-    chosen = pick(rows, counts, arguments.seed)
+    chosen = pick(rows, counts, arguments.seed, frozenset(arguments.skip_video))
     chosen.sort(key=lambda row: (row["video_id"], row["start_second"]))
     if not FFMPEG:
         raise SystemExit("ffmpeg is needed to write the clips: install it and put it on the PATH.")
@@ -137,7 +154,12 @@ def main() -> None:
             if cached_id != row["video_id"]:
                 if downloaded and cached_path:
                     cached_path.unlink(missing_ok=True)
-                prepared = runner._downloader().download(row["video_id"], runner.settings["download_dir"])
+                try:
+                    prepared = runner._downloader().download(row["video_id"], runner.settings["download_dir"])
+                except Exception as error:  # a video the server no longer has: skip its clips
+                    print(f"[{number}/{len(chosen)}] FAILED {row['video_id']}: {type(error).__name__}: {error}")
+                    cached_id, cached_path, downloaded = None, None, False
+                    continue
                 cached_id, cached_path, downloaded = row["video_id"], prepared.path, prepared.downloaded_this_run
             source, offset = cached_path, float(row["start_second"])
         try:
@@ -154,7 +176,7 @@ def main() -> None:
                 "source_time_seconds": f"{seconds:.1f}",
                 "youtube": f"https://youtu.be/{row['video_id']}?t={int(seconds)}",
                 "person_id": row["person_id"],
-                "vlm_reason": row["decision_reason"][:120],
+                "vlm_reason": (row["decision_reason"] or check_summary(run, row))[:200],
             }
         )
         print(f"[{number}/{len(chosen)}] {name}")

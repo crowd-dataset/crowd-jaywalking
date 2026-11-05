@@ -61,7 +61,7 @@ def main() -> None:
                 "hours",
                 "crossings_detected",
                 "at_zebra_or_light",
-                "not_confirmed_by_vlm",
+                "rejected_by_vlm",
                 "crossings_without_zebra_or_light",
             ]
         )

@@ -1,4 +1,4 @@
-country,segments,hours,crossings_detected,at_zebra_or_light,not_confirmed_by_vlm,crossings_without_zebra_or_light,jaywalking_per_hour
+country,segments,hours,crossings_detected,at_zebra_or_light,rejected_by_vlm,crossings_without_zebra_or_light,jaywalking_per_hour
 China,221,96.35,2110,1865,234,11,0.11
 Japan,205,100.59,3878,3604,267,7,0.07
 Bangladesh,287,92.22,2102,101,1399,596,6.46

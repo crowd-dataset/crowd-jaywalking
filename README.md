@@ -14,6 +14,7 @@ The target is the [CROWD dataset](https://github.com/crowd-dataset/crowd): about
 * [What the VLM sees](#what-the-vlm-sees)
 * [How it is evaluated](#how-it-is-evaluated)
 * [Results](#results)
+* [Keypoints of the people who crossed without a marking](#keypoints-of-the-people-who-crossed-without-a-marking)
 * [Setup](#setup)
 * [Running](#running)
 * [Configuration reference](#configuration-reference)
@@ -161,6 +162,30 @@ Per country, the crossings detected, those at a zebra crossing or light, and the
 * The six-country hours are Tokyo 100.6; Paris 100.0; Copenhagen 100.2; Stockholm 98.5 and Gothenburg 1.6; Beijing 45.6, Shanghai 34.2 and Shenzhen 20.3; Sylhet, Dhaka and 22 other Bangladeshi towns (selected hours, before failures). The counts are not checked by hand; `scripts/crowd/make_verification_clips.py` cuts a random sample of clips, with the person's box drawn, to check them by eye.
 * "Korea" is South Korea; North Korea has only 2.4 hours of footage in the mapping.
 
+## Keypoints of the people who crossed without a marking
+
+After stages 1 and 2, `scripts/crowd/run_keypoints.py` measures how the people labelled `JAYWALKING` (crossed with no zebra crossing, traffic light or crossing sign in view) move their head and body. For each person it reads their boxes from the CROWD track file, opens the source video (from `--video-dir` if it is there, else downloaded from the CROWD file server and deleted afterwards), crops every frame of the track around the box with a 35% margin (scaled up to at least 256 pixels high), runs a YOLO11 pose model (`yolo11x-pose.pt`) on the crops, and keeps the pose whose box overlaps the tracked box most (IoU of at least 0.3). `--labels JAYWALKING COMPLIANT` adds the people who crossed at a marking, for a comparison in the same footage.
+
+```
+uv run python scripts/crowd/run_keypoints.py results/six_countries_100h_16bit results/korea_vietnam_16bit --output results/keypoints_16bit
+```
+
+| Output | Contents |
+| --- | --- |
+| `keypoints/<video_key>_person<id>.csv` | One row per frame of the track: time, tracked box, the 17 COCO keypoints (x, y in pixels of the full frame, confidence), and the per-frame measures below |
+| `people.csv` | One row per person: run, country, label, frames with a pose, and the per-person measures |
+| `errors.csv` | People that could not be done, with the reason |
+
+A person whose keypoint CSV exists is skipped on a rerun. The measures (a keypoint counts at confidence 0.5 or more):
+
+* **face_to_camera**: nose and both eyes visible. The camera is in the car that approaches the person, so the person looks towards the car.
+* **side_on**: the shoulder span is less than 0.45 of the torso length, so the body faces across the road.
+* **glance**: face_to_camera while side_on: the head is turned to the car while the body crosses.
+* **head_yaw**: the nose minus the middle of the ears (or the eyes), over the shoulder span.
+* Per person: the share of posed frames with each of these, the number of separate glances (at least 0.2 s), whether the person glanced at the car before stepping onto the road, and how many seconds before.
+
+Settings: `--pose-model`, `--device`, `--batch`, `--stride` (every n-th frame), `--min-iou`, `--min-keypoint-conf`, `--min-glance-seconds`, `--countries`, `--max-people`, `--keep-videos`. The measures are read in the image of a moving camera, and small, distant people give less reliable keypoints; check `pose_share` and the keypoint confidences before comparing groups.
+
 ## Setup
 
 All commands run from the repository root (PowerShell on Windows; the same commands work in a Linux shell with `/` paths).
@@ -204,6 +229,7 @@ Edit `config` for paths and runs. When `default.config` gains settings, add them
 | Sample of CROWD segments | `uv run python scripts/crowd/select_country_sample.py results/selection.csv --countries China Japan --hours 100` | Random daytime car segments, hours split equally over the countries; point `crowd_selection` at the CSV |
 | Crossings per country | `uv run python scripts/crowd/plot_country_crossings.py <results folder>` | Writes `crossings_by_country.png` and `.csv` into the results folder |
 | Total against jaywalking crossings | `uv run python scripts/crowd/plot_crossing_scatter.py <results folder> [<results folder> ...]` | Scatter plot, one point per country, over one or more runs; `--per-hour` divides both axes by the hours of footage; `--output` sets the file |
+| Keypoints of the people who crossed without a marking | `uv run python scripts/crowd/run_keypoints.py <results folder> [...] --output <folder>` | YOLO11 pose on crops around each `JAYWALKING` person's track; keypoints per frame and head and body measures per person (see [Keypoints](#keypoints-of-the-people-who-crossed-without-a-marking)) |
 | Clips to check by eye | `uv run python scripts/crowd/make_verification_clips.py <results folder>` | A random sample per country of crossings without zebra crossing or light, at one, and not confirmed, as clips with the person's box; `index.csv` links each to YouTube |
 | Share the surface labels | `uv run python scripts/crowd/sync_segmentation.py pull` or `push` | Merges `crowd_city_segmentation_store` with crowd-city's store folder on the CROWD server's disk (`pedestrians_in-youtube/seg`, crowd-city's `seg_data`), so a segment either project has segmented is not segmented again by the other. Tracks one side lacks are added to both; nothing is overwritten or deleted. Password in `secret` as `crowd_tue3_ssh_password` |
 | Stage 1 alone against JAAD | `uv run python -u .\scripts\crossing\evaluate_crowd_city_crossing.py` | No VLM. Writes `<results>/crowd_city_stage1/summary.json` (precision and recall of crowd-city's decision on all three splits) |
@@ -571,6 +597,7 @@ The first stage classifier alone, on the official JAAD test split (YOLO26x): tra
 │   │   ├── crowd_source.py, crowd_analysis.py, crowd_tracks.py  # mapping, download, runs, precomputed tracks
 │   │   ├── run_crowd_analysis.py         # stages 1 and 2 on CROWD
 │   │   ├── select_country_sample.py, plot_country_crossings.py, plot_crossing_scatter.py  # sample segments, bar and scatter plots
+│   │   ├── run_keypoints.py              # body keypoints and head/body measures of the people who crossed without a marking
 │   │   └── make_verification_clips.py, sync_segmentation.py     # clips to check by eye, share the surface labels
 │   ├── law/
 │   │   ├── jaywalking_law.py, law_stage.py  # stage 3: rule sets, decision rules, runs over saved claims

@@ -114,10 +114,12 @@ def plot_rates(rows: list[dict[str, str]], output: Path, html: bool) -> None:
                 marker_line=dict(color="white", width=1.5), customdata=counts,
                 hovertemplate="%{y}: %{x}% (%{customdata} crossings)<extra>" + label + "</extra>",
             ), row=1, col=2)
-        page.update_xaxes(type="log", title_text="Crossings without a marking per hour (log scale)", row=1, col=1)
+        ticks = [0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10]
+        page.update_xaxes(type="log", tickvals=ticks, ticktext=[f"{t:g}" for t in ticks],
+                          title_text="Crossings without a marking per hour (log scale)", row=1, col=1)
         page.update_xaxes(range=[0, 100], title_text="Share of the crossings stage 1 detected (%)", row=1, col=2)
         page.update_layout(barmode="stack", template="simple_white", height=520,
-                           legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center"))
+                           legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center", traceorder="normal"))
         target = output.with_suffix(".html")
         page.write_html(target, include_plotlyjs=True)
         print(f"wrote {target}")

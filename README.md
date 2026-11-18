@@ -142,7 +142,7 @@ nor a crossing sign. 2,165 of the 2,204 planned segments finished (785 hours), p
 | South Korea | 185 | 100.1 | 1367 | 1205 | 138 | 23 | 0.23 |
 | Vietnam | 329 | 99.9 | 913 | 236 | 564 | **111** | **1.11** |
 
-The table is also in [`docs/crossings_by_country.csv`](docs/crossings_by_country.csv). The figures below are clickable: each opens an interactive version (hover for the values).
+The table is also in [`docs/crossings_by_country.csv`](docs/crossings_by_country.csv). The tables in `docs` are made in two steps: `scripts/crowd/summarise_runs.py` summarises the finished runs on each machine where they are (counts per segment and movement aggregates; no boxes or video are copied), and `scripts/crowd/country_tables.py` merges those summaries, counting each segment once. The figures below are clickable: each opens an interactive version (hover for the values).
 
 [![Total crossings against jaywalking crossings](docs/images/crossings_scatter.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/crossings_scatter.html)
 
@@ -217,7 +217,7 @@ Because these are measured in the image of a moving camera, the two groups are c
 | Vietnam | 109 / 228 | 19 / 54 | 4.7 / 5.2 | 0.74 / 0.77 |
 | France | 47 / 2,882 | 26 / 70 | 2.9 / 3.1 | 0.96 / 0.79 |
 | Denmark | 58 / 2,276 | 41 / 72 | 2.3 / 2.4 | 0.97 / 0.81 |
-| Sweden | 66 / 1,905 | 44 / 77 | 2.1 / 2.1 | 0.88 / 0.79 |
+| Sweden | 66 / 1,900 | 44 / 77 | 2.1 / 2.1 | 0.88 / 0.79 |
 | South Korea | 23 / 1,158 | 26 / 74 | 3.7 / 3.5 | 0.77 / 0.79 |
 
 * **People who cross without a marking cross alone more often.** This holds in all six countries compared, and in five of them the intervals are apart (in Bangladesh they overlap). Over all eight countries, 35.7% of crossings without a marking overlapped with another person's crossing, against 74.2% at a marking. It is the clearest difference.
@@ -304,6 +304,8 @@ Edit `config` for paths and runs. When `default.config` gains settings, add them
 | Sample of CROWD segments | `uv run python scripts/crowd/select_country_sample.py results/selection.csv --countries China Japan --hours 100` | Random daytime car segments, hours split equally over the countries; point `crowd_selection` at the CSV |
 | Crossings per country | `uv run python scripts/crowd/plot_country_crossings.py <results folder>` | Writes `crossings_by_country.png` and `.csv` into the results folder; `--table <csv> --output <png>` plots a country table instead, `--countries` picks and orders the countries, `--html` also writes an interactive `.html` (needs `uv run --with plotly`) |
 | Total against jaywalking crossings | `uv run python scripts/crowd/plot_crossing_scatter.py <results folder> [<results folder> ...]` | Scatter plot, one point per country, over one or more runs; `--per-hour` divides both axes by the hours of footage; `--output` sets the file; `--table <csv>` plots a country table instead, `--compare <csv>` adds a second table (such as the 4-bit run) as open circles with arrows, `--html` also writes an interactive `.html` (needs `uv run --with plotly`) |
+| Summarise finished runs | `python3 -I scripts/crowd/summarise_runs.py summary.json --root results --run <run>=<selection.csv> [--run ...]` | Run where the results are; reads only and needs only the standard library. Per-segment counts, the segments each run planned and finished, and the movement of the people who crossed, as one small JSON per machine |
+| Country tables | `uv run python scripts/crowd/country_tables.py summary_*.json --output-dir docs` | Merges the summaries (each segment once) into `crossings_by_country.csv`, `jaywalking_rates.csv` and `crossing_movement.csv` |
 | Jaywalking rates and movement figures | `uv run --with plotly python scripts/crowd/plot_country_analysis.py docs/jaywalking_rates.csv docs/crossing_movement.csv --output-dir docs/images --html` | The rate per country with 95% intervals and what the detected crossings were (`jaywalking_rate`), and the movement of people crossing without a marking and at one (`crossing_movement`); `--html` also writes interactive versions |
 | Keypoints of the people who crossed without a marking | `uv run python scripts/crowd/run_keypoints.py <results folder> [...] --output <folder>` | YOLO11 pose on crops around each `JAYWALKING` person's track; keypoints per frame and head and body measures per person (see [Keypoints](#keypoints-of-the-people-who-crossed-without-a-marking)) |
 | Clips to check by eye | `uv run python scripts/crowd/make_verification_clips.py <results folder>` | A random sample per country of crossings without zebra crossing or light, at one, and not confirmed, as clips with the person's box; `index.csv` links each to YouTube |
@@ -673,6 +675,7 @@ The first stage classifier alone, on the official JAAD test split (YOLO26x): tra
 │   │   ├── crowd_source.py, crowd_analysis.py, crowd_tracks.py  # mapping, download, runs, precomputed tracks
 │   │   ├── run_crowd_analysis.py         # stages 1 and 2 on CROWD
 │   │   ├── select_country_sample.py, plot_country_crossings.py, plot_crossing_scatter.py, plot_country_analysis.py  # sample segments, bar, scatter, rate and movement plots
+│   │   ├── summarise_runs.py, country_tables.py  # run summaries on each machine, merged into the country tables in docs
 │   │   ├── run_keypoints.py              # body keypoints and head/body measures of the people who crossed without a marking
 │   │   └── make_verification_clips.py, sync_segmentation.py     # clips to check by eye, share the surface labels
 │   ├── law/

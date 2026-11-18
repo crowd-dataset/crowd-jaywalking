@@ -146,7 +146,7 @@ The table is also in [`docs/crossings_by_country.csv`](docs/crossings_by_country
 
 [![Total crossings against jaywalking crossings](docs/images/crossings_scatter.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/crossings_scatter.html)
 
-The scatter plot (`scripts/crowd/plot_crossing_scatter.py`) puts the jaywalking crossings on the X axis and all crossings detected on the Y axis, one point per country. The same plot per hour of footage:
+The scatter plot (`scripts/crowd/plot_crossing_scatter.py`) puts the jaywalking crossings on the X axis and all crossings detected on the Y axis, one point per country. Filled points are this 16-bit run; open grey points are the earlier run with the VLM in 4-bit mode, with an arrow from each to the same country's 16-bit point. The same plot per hour of footage:
 
 [![Crossings per hour of footage](docs/images/crossings_scatter_per_hour.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/crossings_scatter_per_hour.html)
 
@@ -160,7 +160,20 @@ Per country, the crossings detected, those at a zebra crossing or light, and the
 * Bangladesh stands out with 9.5 jaywalking crossings per hour of footage, then Vietnam with 1.1; the other six countries have 0.7 or fewer. Japan has the most crossings of all (3878) and France the next most (3551), almost all at a zebra crossing or a traffic light. Bangladesh has only about 96 hours of daytime car footage in the mapping and only 12.6 of them are Dhaka (Sylhet has 69), so its rate describes Sylhet more than the capital.
 * 39 of the 2,204 segments failed after retries: 23 without a precomputed track file, 15 whose video could not be opened, and 1 whose video is not on the file server. That is why China, France, Denmark and Bangladesh are a few hours under 100 (the failed segments are listed in each run's `errors.csv`).
 * The hours of the finished segments are Tokyo 100.6; Paris 96.4; Copenhagen 97.3; Stockholm 97.5 and Gothenburg 1.6; Beijing 44.2, Shanghai 33.2 and Shenzhen 18.9; Sylhet 69.1, Dhaka 12.6 and 22 other Bangladeshi towns; Seoul 40.1, Busan 29.2 and 33 other South Korean cities; Hanoi 80.9 and 14 other Vietnamese places. The counts are not checked by hand; `scripts/crowd/make_verification_clips.py` cuts a random sample of clips, with the person's box drawn, to check them by eye.
-* Compared with the earlier run of almost the same segments with the VLM in 4-bit mode ([`docs/crossings_by_country_4bit.csv`](docs/crossings_by_country_4bit.csv)), the 16-bit VLM rejects fewer of the people stage 1 flags (3,369 against 3,907) and labels more crossings as jaywalking in every country (1,247 against 813; Bangladesh 903 against 596). Bangladesh and Vietnam have the highest rates in both, and the per-hour order of the other six changes a little.
+* **4-bit against 16-bit.** The earlier run ([`docs/crossings_by_country_4bit.csv`](docs/crossings_by_country_4bit.csv)) used the VLM in 4-bit mode on almost the same segments. The 16-bit VLM rejects fewer of the people stage 1 flags (3,369 against 3,907) and labels more crossings as jaywalking in every country (1,247 against 813; Bangladesh 903 against 596). Bangladesh and Vietnam have the highest rates in both, and the per-hour order of the other six changes a little. The 4-bit South Korea and Vietnam run was made earlier, and stage 1 found somewhat fewer crossings in it (Vietnam 749 against 913), so for those two countries the points also move up. Per country, 4-bit / 16-bit:
+
+| Country | Segments, 4-bit / 16-bit | Crossings detected | Jaywalking | Jaywalking per hour | Rejected by the VLM |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| China | 221 / 221 | 2,110 / 2,110 | 11 / 19 | 0.11 / 0.20 | 11.1% / 8.9% |
+| Japan | 205 / 205 | 3,878 / 3,878 | 7 / 13 | 0.07 / 0.13 | 6.9% / 6.2% |
+| Bangladesh | 287 / 296 | 2,102 / 2,199 | 596 / 903 | 6.46 / 9.48 | 66.6% / 54.1% |
+| France | 319 / 319 | 3,551 / 3,551 | 40 / 49 | 0.42 / 0.51 | 16.7% / 12.7% |
+| Sweden | 370 / 370 | 2,318 / 2,316 | 40 / 67 | 0.40 / 0.68 | 14.5% / 10.1% |
+| Denmark | 240 / 240 | 2,854 / 2,854 | 28 / 62 | 0.29 / 0.64 | 16.5% / 12.9% |
+| South Korea | 185 / 185 | 1,344 / 1,367 | 7 / 23 | 0.07 / 0.23 | 10.8% / 10.1% |
+| Vietnam | 330 / 329 | 749 / 913 | 84 / 111 | 0.84 / 1.11 | 61.9% / 61.8% |
+| **All** | 2,157 / 2,165 | 18,906 / 19,188 | 813 / 1,247 | 1.04 / 1.59 | 20.7% / 17.6% |
+
 * "Korea" is South Korea; North Korea has only 2.4 hours of footage in the mapping.
 
 ### Jaywalking rates with 95% intervals
@@ -290,7 +303,7 @@ Edit `config` for paths and runs. When `default.config` gains settings, add them
 | Stages 1 and 2 on CROWD | `uv run python -u .\scripts\crowd\run_crowd_analysis.py` | `crowd_max_segments` or `crowd_video_id` limit the run |
 | Sample of CROWD segments | `uv run python scripts/crowd/select_country_sample.py results/selection.csv --countries China Japan --hours 100` | Random daytime car segments, hours split equally over the countries; point `crowd_selection` at the CSV |
 | Crossings per country | `uv run python scripts/crowd/plot_country_crossings.py <results folder>` | Writes `crossings_by_country.png` and `.csv` into the results folder; `--table <csv> --output <png>` plots a country table instead, `--countries` picks and orders the countries, `--html` also writes an interactive `.html` (needs `uv run --with plotly`) |
-| Total against jaywalking crossings | `uv run python scripts/crowd/plot_crossing_scatter.py <results folder> [<results folder> ...]` | Scatter plot, one point per country, over one or more runs; `--per-hour` divides both axes by the hours of footage; `--output` sets the file; `--table <csv>` plots a country table instead, `--html` also writes an interactive `.html` (needs `uv run --with plotly`) |
+| Total against jaywalking crossings | `uv run python scripts/crowd/plot_crossing_scatter.py <results folder> [<results folder> ...]` | Scatter plot, one point per country, over one or more runs; `--per-hour` divides both axes by the hours of footage; `--output` sets the file; `--table <csv>` plots a country table instead, `--compare <csv>` adds a second table (such as the 4-bit run) as open circles with arrows, `--html` also writes an interactive `.html` (needs `uv run --with plotly`) |
 | Jaywalking rates and movement figures | `uv run --with plotly python scripts/crowd/plot_country_analysis.py docs/jaywalking_rates.csv docs/crossing_movement.csv --output-dir docs/images --html` | The rate per country with 95% intervals and what the detected crossings were (`jaywalking_rate`), and the movement of people crossing without a marking and at one (`crossing_movement`); `--html` also writes interactive versions |
 | Keypoints of the people who crossed without a marking | `uv run python scripts/crowd/run_keypoints.py <results folder> [...] --output <folder>` | YOLO11 pose on crops around each `JAYWALKING` person's track; keypoints per frame and head and body measures per person (see [Keypoints](#keypoints-of-the-people-who-crossed-without-a-marking)) |
 | Clips to check by eye | `uv run python scripts/crowd/make_verification_clips.py <results folder>` | A random sample per country of crossings without zebra crossing or light, at one, and not confirmed, as clips with the person's box; `index.csv` links each to YouTube |

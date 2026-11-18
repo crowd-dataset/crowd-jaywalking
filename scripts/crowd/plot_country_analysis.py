@@ -138,9 +138,9 @@ def plot_movement(rows: list[dict[str, str]], output: Path, html: bool) -> None:
             m = [float(v[mid]) for v in values]
             lo = [float(v[low]) for v in values]
             hi = [float(v[high]) for v in values]
-            axis.errorbar(m, [yi + shift for yi in y], xerr=[[a - b for a, b in zip(m, lo)],
-                                                               [b - a for a, b in zip(m, hi)]],
-                          fmt="o", ms=6, capsize=2, lw=1.2, color=colour, label=label)
+            error = [[a - b for a, b in zip(m, lo)], [b - a for a, b in zip(m, hi)]]
+            axis.errorbar(m, [yi + shift for yi in y], xerr=error, fmt="o", ms=6, capsize=2, lw=1.2, color=colour,
+                          label=label)
         axis.set_title(title, fontsize=10)
         axis.set_yticks(y, order)
         axis.grid(axis="x", alpha=0.3)

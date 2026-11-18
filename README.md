@@ -163,6 +163,67 @@ Per country, the crossings detected, those at a zebra crossing or light, and the
 * Compared with the earlier run of almost the same segments with the VLM in 4-bit mode ([`docs/crossings_by_country_4bit.csv`](docs/crossings_by_country_4bit.csv)), the 16-bit VLM rejects fewer of the people stage 1 flags (3,369 against 3,907) and labels more crossings as jaywalking in every country (1,247 against 813; Bangladesh 903 against 596). Bangladesh and Vietnam have the highest rates in both, and the per-hour order of the other six changes a little.
 * "Korea" is South Korea; North Korea has only 2.4 hours of footage in the mapping.
 
+### Jaywalking rates with 95% intervals
+
+The rate of crossings without a marking per hour of footage, with a 95% interval from a bootstrap over segments (4,000 resamples), and what the crossings stage 1 detected turned out to be. The numbers, with the intervals and the share of judged crossings without a marking (Wilson interval), are in [`docs/jaywalking_rates.csv`](docs/jaywalking_rates.csv).
+
+[![Jaywalking rate per country with 95% intervals, and what the detected crossings were](docs/images/jaywalking_rate.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/jaywalking_rate.html)
+
+| Country | Jaywalking per hour (95% interval) | Share of judged crossings without a marking (95% interval) | Rejected by the VLM |
+| --- | ---: | ---: | ---: |
+| Bangladesh | **9.48** (8.05–10.89) | **90.1%** (88.1–91.8) | 54.1% |
+| Vietnam | **1.11** (0.80–1.45) | **32.0%** (27.3–37.1) | 61.8% |
+| Sweden | 0.68 (0.31–1.16) | 3.2% (2.6–4.1) | 10.1% |
+| Denmark | 0.64 (0.30–1.03) | 2.5% (2.0–3.2) | 12.9% |
+| France | 0.51 (0.30–0.76) | 1.6% (1.2–2.1) | 12.7% |
+| South Korea | 0.23 (0.11–0.36) | 1.9% (1.3–2.8) | 10.1% |
+| China | 0.20 (0.09–0.33) | 1.0% (0.6–1.5) | 8.9% |
+| Japan | 0.13 (0.04–0.25) | 0.4% (0.2–0.6) | 6.2% |
+| **All** | 1.59 | 7.9% | 17.6% |
+
+* Three groups: Bangladesh (about 9.5 per hour, 90% of judged crossings without a marking), Vietnam (about 1.1 per hour, 32%), and the other six (0.13 to 0.68 per hour, at most about 3%). Bangladesh's rate interval is far from all others. Vietnam's rate interval overlaps those of Sweden and Denmark, but its share of judged crossings without a marking (27–37%) is far from the other six (at most 4%). Within the six the intervals overlap, so their order is not settled by this sample.
+* The rate per hour mixes how many people cross with how many of them use a marking; the share separates the two. Japan has the most crossings of all (38.6 detected per hour) and the lowest share without a marking (0.4%).
+* Bangladesh and Vietnam also have by far the most people rejected by the VLM as not crossing (54% and 62%, against 6–13% elsewhere): many people walk on the carriageway itself and motorcycles are common there, so more such people pass stage 1.
+
+### How people move when they cross without a marking
+
+For each person who crossed, with or without a marking, the movement is measured from the boxes of their track. The camera moves and people are at different distances, so movement is measured in the image, in the person's own body height (the median height of their box) per second:
+
+* **Sideways speed**: the person's median sideways speed over the track (the figure shows the mean over people).
+* **Stopped mid-crossing**: stood still (below 0.15 body heights per second) for at least 0.5 s after starting to walk and before walking on.
+* **Crossed with others**: another person's crossing in the same segment overlapped theirs within 1 s.
+* **Vehicles in view**: the mean number of cars, buses, trucks and motorcycles in the CROWD tracks from 1 s before to 1 s after the crossing.
+
+Because these are measured in the image of a moving camera, the two groups are compared only **within** a country, where the footage is alike, and only where there are at least 20 crossings without a marking (China, 19, and Japan, 13, are left out). Movement could be measured for 1,184 crossings without a marking and 13,645 at one. The values with 95% intervals are in [`docs/crossing_movement.csv`](docs/crossing_movement.csv).
+
+[![Movement of people crossing without a marking and at one, per country](docs/images/crossing_movement.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/crossing_movement.html)
+
+| Country | People without / at a marking | Crossed with others (%), without / at | Vehicles in view, without / at | Sideways speed (body heights/s), without / at |
+| --- | ---: | ---: | ---: | ---: |
+| Bangladesh | 852 / 90 | 37 / 47 | 2.1 / 2.4 | 0.69 / 0.74 |
+| Vietnam | 109 / 228 | 19 / 54 | 4.7 / 5.2 | 0.74 / 0.77 |
+| France | 47 / 2,882 | 26 / 70 | 2.9 / 3.1 | 0.96 / 0.79 |
+| Denmark | 58 / 2,276 | 41 / 72 | 2.3 / 2.4 | 0.97 / 0.81 |
+| Sweden | 66 / 1,905 | 44 / 77 | 2.1 / 2.1 | 0.88 / 0.79 |
+| South Korea | 23 / 1,158 | 26 / 74 | 3.7 / 3.5 | 0.77 / 0.79 |
+
+* **People who cross without a marking cross alone more often.** This holds in all six countries compared, and in five of them the intervals are apart (in Bangladesh they overlap). Over all eight countries, 35.7% of crossings without a marking overlapped with another person's crossing, against 74.2% at a marking. It is the clearest difference.
+* **Fewer vehicles around them**, in five of the six countries (South Korea is the exception; 2.4 against 2.8 on average over all eight), consistent with waiting for a gap in traffic. The differences are small.
+* **Sideways speed has no common direction.** In France and Denmark people crossing without a marking moved faster sideways than at a marking (intervals apart); in Sweden the difference is smaller and the intervals overlap; in Bangladesh, Vietnam and South Korea the two groups are about the same (in Bangladesh slightly slower without a marking, with overlapping intervals).
+* **Stopping mid-crossing was rare in both groups** (8.8% without a marking, 5.0% at one, over all eight countries), with wide intervals where crossings without a marking are few; so was turning back (5.7% and 6.4%).
+
+### Why the VLM runs at 16-bit precision
+
+The first runs used the VLM in 4-bit mode to save memory. To check the crossing check, 121 people that stage 1 had proposed in those runs, across all eight countries and including crossings the VLM had kept and ones it had rejected, were reviewed by hand from a clip with the person's box drawn: crossing the camera car's road at a marking, crossing it without one, or not crossing it. The crossing check was then asked again for the same people with the VLM at 16-bit precision. 11 of the 16-bit answers stopped with an error, which leaves 110 people: 63 who crossed and 47 who did not.
+
+| Setting | Agrees with the reviewer | Real crossings found | People who did not cross but were accepted |
+| --- | ---: | ---: | ---: |
+| 4-bit, window around the crossing | 68 of 110 | 21 of 63 (33%) | 0 of 47 |
+| **16-bit, window around the crossing** | **81 of 110** | **42 of 63 (67%)** | 8 of 47 |
+| 16-bit, whole track | 76 of 110 | 41 of 63 (65%) | 12 of 47 |
+
+The 4-bit VLM rejected two thirds of the real crossings; at 16-bit it finds twice as many and accepts a few people who did not cross. Showing it the whole track instead of the window around the crossing did not help. The results above therefore use the 16-bit VLM with the crossing window. The counts remain lower bounds: stage 1 finds about a third of the crossings on JAAD, and the crossing check finds about two thirds of the real crossings in this sample.
+
 ## Keypoints of the people who crossed without a marking
 
 After stages 1 and 2, `scripts/crowd/run_keypoints.py` measures how the people labelled `JAYWALKING` (crossed with no zebra crossing, traffic light or crossing sign in view) move their head and body. For each person it reads their boxes from the CROWD track file, opens the source video (from `--video-dir` if it is there, else downloaded from the CROWD file server and deleted afterwards), crops every frame of the track around the box with a 35% margin (scaled up to at least 256 pixels high), runs a YOLO11 pose model (`yolo11x-pose.pt`) on the crops, and keeps the pose whose box overlaps the tracked box most (IoU of at least 0.3). `--labels JAYWALKING COMPLIANT` adds the people who crossed at a marking, for a comparison in the same footage.
@@ -230,6 +291,7 @@ Edit `config` for paths and runs. When `default.config` gains settings, add them
 | Sample of CROWD segments | `uv run python scripts/crowd/select_country_sample.py results/selection.csv --countries China Japan --hours 100` | Random daytime car segments, hours split equally over the countries; point `crowd_selection` at the CSV |
 | Crossings per country | `uv run python scripts/crowd/plot_country_crossings.py <results folder>` | Writes `crossings_by_country.png` and `.csv` into the results folder; `--table <csv> --output <png>` plots a country table instead, `--countries` picks and orders the countries, `--html` also writes an interactive `.html` (needs `uv run --with plotly`) |
 | Total against jaywalking crossings | `uv run python scripts/crowd/plot_crossing_scatter.py <results folder> [<results folder> ...]` | Scatter plot, one point per country, over one or more runs; `--per-hour` divides both axes by the hours of footage; `--output` sets the file; `--table <csv>` plots a country table instead, `--html` also writes an interactive `.html` (needs `uv run --with plotly`) |
+| Jaywalking rates and movement figures | `uv run --with plotly python scripts/crowd/plot_country_analysis.py docs/jaywalking_rates.csv docs/crossing_movement.csv --output-dir docs/images --html` | The rate per country with 95% intervals and what the detected crossings were (`jaywalking_rate`), and the movement of people crossing without a marking and at one (`crossing_movement`); `--html` also writes interactive versions |
 | Keypoints of the people who crossed without a marking | `uv run python scripts/crowd/run_keypoints.py <results folder> [...] --output <folder>` | YOLO11 pose on crops around each `JAYWALKING` person's track; keypoints per frame and head and body measures per person (see [Keypoints](#keypoints-of-the-people-who-crossed-without-a-marking)) |
 | Clips to check by eye | `uv run python scripts/crowd/make_verification_clips.py <results folder>` | A random sample per country of crossings without zebra crossing or light, at one, and not confirmed, as clips with the person's box; `index.csv` links each to YouTube |
 | Share the surface labels | `uv run python scripts/crowd/sync_segmentation.py pull` or `push` | Merges `crowd_city_segmentation_store` with crowd-city's store folder on the CROWD server's disk (`pedestrians_in-youtube/seg`, crowd-city's `seg_data`), so a segment either project has segmented is not segmented again by the other. Tracks one side lacks are added to both; nothing is overwritten or deleted. Password in `secret` as `crowd_tue3_ssh_password` |
@@ -597,7 +659,7 @@ The first stage classifier alone, on the official JAAD test split (YOLO26x): tra
 │   ├── crowd/
 │   │   ├── crowd_source.py, crowd_analysis.py, crowd_tracks.py  # mapping, download, runs, precomputed tracks
 │   │   ├── run_crowd_analysis.py         # stages 1 and 2 on CROWD
-│   │   ├── select_country_sample.py, plot_country_crossings.py, plot_crossing_scatter.py  # sample segments, bar and scatter plots
+│   │   ├── select_country_sample.py, plot_country_crossings.py, plot_crossing_scatter.py, plot_country_analysis.py  # sample segments, bar, scatter, rate and movement plots
 │   │   ├── run_keypoints.py              # body keypoints and head/body measures of the people who crossed without a marking
 │   │   └── make_verification_clips.py, sync_segmentation.py     # clips to check by eye, share the surface labels
 │   ├── law/

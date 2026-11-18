@@ -127,39 +127,40 @@ On all three JAAD splits (train, val, and test; 309 videos):
 
 ### Crossings by country (CROWD samples, stages 1 and 2)
 
-Daytime footage filmed from a car, run through stages 1 and 2 with the VLM in 4-bit mode (`scripts/crowd/select_country_sample.py`, seed 0). The six-country run fills each country to about 100 hours from its capital first (`--capitals-first`: whole source videos in random order), and only when the capital has too few hours from the next biggest cities. The country law (stage 3) is not used. A crossing counts as
+Daytime footage filmed from a car, run through stages 1 and 2 with the VLM at full 16-bit precision (`vlm_quantization: null`; segments from `scripts/crowd/select_country_sample.py`, seed 0). The six-country sample fills each country to about 100 hours from its capital first (`--capitals-first`: whole source videos in random order), and only when the capital has too few hours from the next biggest cities. South Korea and Vietnam are a random sample of about 100 hours each. The country law (stage 3) is not used. A crossing counts as
 **without zebra crossing or traffic light** (jaywalking in the table) when stage 1 finds it and the VLM confirms it as a crossing and finds neither a zebra crossing, a traffic light
-nor a crossing sign. Two runs: about 100 hours each over China, Japan, Bangladesh, France, Sweden and Denmark (1,642 of 1,689 segments finished), and 100 hours each for South Korea and Vietnam, a random sample (515 segments, run earlier).
+nor a crossing sign. 2,165 of the 2,204 planned segments finished (785 hours), processed on two machines and merged with each segment counted once.
 
-| Country | Hours | Crossings detected (stage 1) | At a zebra crossing or light | Rejected by the VLM (not a crossing) | Jaywalking | Jaywalking per hour |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| China | 96.3 | 2110 | 1865 | 234 | 11 | 0.11 |
-| Japan | 100.6 | 3878 | 3604 | 267 | 7 | 0.07 |
-| Bangladesh | 92.2 | 2102 | 101 | 1399 | **596** | **6.46** |
-| France | 96.4 | 3551 | 2915 | 592 | 40 | 0.42 |
-| Sweden | 99.1 | 2318 | 1930 | 336 | 40 | 0.40 |
-| Denmark | 97.3 | 2854 | 2348 | 470 | 28 | 0.29 |
-| South Korea | 100.1 | 1344 | 1191 | 145 | 7 | 0.07 |
-| Vietnam | 100.0 | 749 | 198 | 464 | **84** | **0.84** |
+| Country | Segments | Hours | Crossings detected (stage 1) | At a zebra crossing or light | Rejected by the VLM (not a crossing) | Jaywalking | Jaywalking per hour |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| China | 221 | 96.3 | 2110 | 1903 | 188 | 19 | 0.20 |
+| Japan | 205 | 100.6 | 3878 | 3626 | 239 | 13 | 0.13 |
+| Bangladesh | 296 | 95.3 | 2199 | 99 | 1189 | **903** | **9.48** |
+| France | 319 | 96.4 | 3551 | 3051 | 450 | 49 | 0.51 |
+| Sweden | 370 | 99.1 | 2316 | 2003 | 234 | 67 | 0.68 |
+| Denmark | 240 | 97.3 | 2854 | 2413 | 367 | 62 | 0.64 |
+| South Korea | 185 | 100.1 | 1367 | 1205 | 138 | 23 | 0.23 |
+| Vietnam | 329 | 99.9 | 913 | 236 | 564 | **111** | **1.11** |
 
-The table is also in [`docs/crossings_by_country.csv`](docs/crossings_by_country.csv).
+The table is also in [`docs/crossings_by_country.csv`](docs/crossings_by_country.csv). The figures below are clickable: each opens an interactive version (hover for the values).
 
-![Total crossings against jaywalking crossings](docs/images/crossings_scatter.png)
+[![Total crossings against jaywalking crossings](docs/images/crossings_scatter.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/crossings_scatter.html)
 
-The scatter plot (`scripts/crowd/plot_crossing_scatter.py`) puts the jaywalking crossings on the X axis and all crossings detected on the Y axis, one point per country. The same plot per hour of footage, which makes the 17 hour and 100 hour samples comparable:
+The scatter plot (`scripts/crowd/plot_crossing_scatter.py`) puts the jaywalking crossings on the X axis and all crossings detected on the Y axis, one point per country. The same plot per hour of footage:
 
-![Crossings per hour of footage](docs/images/crossings_scatter_per_hour.png)
+[![Crossings per hour of footage](docs/images/crossings_scatter_per_hour.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/crossings_scatter_per_hour.html)
 
 Per country, the crossings detected, those at a zebra crossing or light, and the jaywalking ones (`scripts/crowd/plot_country_crossings.py`):
 
-![Crossings per country, six countries](docs/images/six_countries_crossings.png)
+[![Crossings per country, six countries](docs/images/six_countries_crossings.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/six_countries_crossings.html)
 
-![Crossings per country, South Korea and Vietnam](docs/images/korea_vietnam_crossings.png)
+[![Crossings per country, South Korea and Vietnam](docs/images/korea_vietnam_crossings.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/korea_vietnam_crossings.html)
 
-* The three right-hand counts add up to the detected crossings, except for 34 crossings the VLM left `UNCERTAIN` (30 in the six-country run: Sweden 12, Denmark 8, Bangladesh 6, France 4; 1 in South Korea, 3 in Vietnam). "Rejected by the VLM" means stage 1 flagged the person but the VLM crossing check answered NO to "is this person walking across the road?" (typically a person on the pavement, walking along the road or riding a bike or motorbike), so the person is not counted as a crossing and is never judged for a zebra crossing or light, and counts in neither of the other two columns. The jaywalking column is therefore a lower bound if the VLM wrongly rejected real crossings, and "Crossings detected" is an upper bound on the real crossings (detected minus rejected); Bangladesh (1399 of 2102) and Vietnam (464 of 749) have the most.
-* Bangladesh stands out with 6.5 jaywalking crossings per hour of footage, then Vietnam with 0.8; the other six countries have 0.5 or fewer. Japan has the most crossings of all (3878) and France the next most (3551), almost all at a zebra crossing or a traffic light; the per-hour rates are much higher than in the earlier 17-hour samples because the sample is now dominated by dense capitals. Bangladesh has only about 96 hours of daytime car footage in the mapping and only 12.6 of them are Dhaka (Sylhet has 69), so its rate describes Sylhet more than the capital.
-* 1,642 of 1,689 segments of the six-country run finished; 47 failed after a retry (22 without a precomputed track file, 15 whose video could not be opened, 10 server download errors), which is why China, France and Bangladesh are a few hours under 100 (the failed segments are listed in `errors.csv`). All 515 segments of the South Korea and Vietnam run finished.
-* The six-country hours are Tokyo 100.6; Paris 100.0; Copenhagen 100.2; Stockholm 98.5 and Gothenburg 1.6; Beijing 45.6, Shanghai 34.2 and Shenzhen 20.3; Sylhet, Dhaka and 22 other Bangladeshi towns (selected hours, before failures). The counts are not checked by hand; `scripts/crowd/make_verification_clips.py` cuts a random sample of clips, with the person's box drawn, to check them by eye.
+* The three right-hand counts add up to the detected crossings, except for 36 crossings the VLM left `UNCERTAIN` (Sweden 12, Denmark 12, Bangladesh 8, Vietnam 2, France 1, South Korea 1). "Rejected by the VLM" means stage 1 flagged the person but the VLM crossing check answered NO to "is this person walking across the road?" (typically a person on the pavement, walking along the road or riding a bike or motorbike), so the person is not counted as a crossing and is never judged for a zebra crossing or light, and counts in neither of the other two columns. The jaywalking column is therefore a lower bound if the VLM wrongly rejected real crossings, and "Crossings detected" is an upper bound on the real crossings (detected minus rejected); Bangladesh (1189 of 2199) and Vietnam (564 of 913) have the most.
+* Bangladesh stands out with 9.5 jaywalking crossings per hour of footage, then Vietnam with 1.1; the other six countries have 0.7 or fewer. Japan has the most crossings of all (3878) and France the next most (3551), almost all at a zebra crossing or a traffic light. Bangladesh has only about 96 hours of daytime car footage in the mapping and only 12.6 of them are Dhaka (Sylhet has 69), so its rate describes Sylhet more than the capital.
+* 39 of the 2,204 segments failed after retries: 23 without a precomputed track file, 15 whose video could not be opened, and 1 whose video is not on the file server. That is why China, France, Denmark and Bangladesh are a few hours under 100 (the failed segments are listed in each run's `errors.csv`).
+* The hours of the finished segments are Tokyo 100.6; Paris 96.4; Copenhagen 97.3; Stockholm 97.5 and Gothenburg 1.6; Beijing 44.2, Shanghai 33.2 and Shenzhen 18.9; Sylhet 69.1, Dhaka 12.6 and 22 other Bangladeshi towns; Seoul 40.1, Busan 29.2 and 33 other South Korean cities; Hanoi 80.9 and 14 other Vietnamese places. The counts are not checked by hand; `scripts/crowd/make_verification_clips.py` cuts a random sample of clips, with the person's box drawn, to check them by eye.
+* Compared with the earlier run of almost the same segments with the VLM in 4-bit mode ([`docs/crossings_by_country_4bit.csv`](docs/crossings_by_country_4bit.csv)), the 16-bit VLM rejects fewer of the people stage 1 flags (3,369 against 3,907) and labels more crossings as jaywalking in every country (1,247 against 813; Bangladesh 903 against 596). Bangladesh and Vietnam have the highest rates in both, and the per-hour order of the other six changes a little.
 * "Korea" is South Korea; North Korea has only 2.4 hours of footage in the mapping.
 
 ## Keypoints of the people who crossed without a marking
@@ -227,8 +228,8 @@ Edit `config` for paths and runs. When `default.config` gains settings, add them
 | Stages 1 and 2 on JAAD, with the audit | `uv run python -u .\scripts\jaad\run_jaad_person_audit.py` | Split from `jaad_audit_split`; resumes after an interruption |
 | Stages 1 and 2 on CROWD | `uv run python -u .\scripts\crowd\run_crowd_analysis.py` | `crowd_max_segments` or `crowd_video_id` limit the run |
 | Sample of CROWD segments | `uv run python scripts/crowd/select_country_sample.py results/selection.csv --countries China Japan --hours 100` | Random daytime car segments, hours split equally over the countries; point `crowd_selection` at the CSV |
-| Crossings per country | `uv run python scripts/crowd/plot_country_crossings.py <results folder>` | Writes `crossings_by_country.png` and `.csv` into the results folder |
-| Total against jaywalking crossings | `uv run python scripts/crowd/plot_crossing_scatter.py <results folder> [<results folder> ...]` | Scatter plot, one point per country, over one or more runs; `--per-hour` divides both axes by the hours of footage; `--output` sets the file |
+| Crossings per country | `uv run python scripts/crowd/plot_country_crossings.py <results folder>` | Writes `crossings_by_country.png` and `.csv` into the results folder; `--table <csv> --output <png>` plots a country table instead, `--countries` picks and orders the countries, `--html` also writes an interactive `.html` (needs `uv run --with plotly`) |
+| Total against jaywalking crossings | `uv run python scripts/crowd/plot_crossing_scatter.py <results folder> [<results folder> ...]` | Scatter plot, one point per country, over one or more runs; `--per-hour` divides both axes by the hours of footage; `--output` sets the file; `--table <csv>` plots a country table instead, `--html` also writes an interactive `.html` (needs `uv run --with plotly`) |
 | Keypoints of the people who crossed without a marking | `uv run python scripts/crowd/run_keypoints.py <results folder> [...] --output <folder>` | YOLO11 pose on crops around each `JAYWALKING` person's track; keypoints per frame and head and body measures per person (see [Keypoints](#keypoints-of-the-people-who-crossed-without-a-marking)) |
 | Clips to check by eye | `uv run python scripts/crowd/make_verification_clips.py <results folder>` | A random sample per country of crossings without zebra crossing or light, at one, and not confirmed, as clips with the person's box; `index.csv` links each to YouTube |
 | Share the surface labels | `uv run python scripts/crowd/sync_segmentation.py pull` or `push` | Merges `crowd_city_segmentation_store` with crowd-city's store folder on the CROWD server's disk (`pedestrians_in-youtube/seg`, crowd-city's `seg_data`), so a segment either project has segmented is not segmented again by the other. Tracks one side lacks are added to both; nothing is overwritten or deleted. Password in `secret` as `crowd_tue3_ssh_password` |

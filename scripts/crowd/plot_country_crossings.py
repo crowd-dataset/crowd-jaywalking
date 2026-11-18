@@ -92,7 +92,7 @@ def write_table(rows: list[dict[str, float | str]], path: Path) -> None:
                 [
                     r["country"],
                     int(r["segments"]),
-                    f"{hours:.2f}",
+                    f"{hours:.3f}",
                     int(r["detected"]),
                     int(r["marked"]),
                     int(r["unconfirmed"]),

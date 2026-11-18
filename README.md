@@ -133,7 +133,7 @@ nor a crossing sign. 2,165 of the 2,204 planned segments finished (785 hours), p
 
 | Country | Segments | Hours | Crossings detected (stage 1) | At a zebra crossing or light | Rejected by the VLM (not a crossing) | Jaywalking | Jaywalking per hour |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| China | 221 | 96.3 | 2110 | 1903 | 188 | 19 | 0.20 |
+| China | 221 | 96.4 | 2110 | 1903 | 188 | 19 | 0.20 |
 | Japan | 205 | 100.6 | 3878 | 3626 | 239 | 13 | 0.13 |
 | Bangladesh | 296 | 95.3 | 2199 | 99 | 1189 | **903** | **9.48** |
 | France | 319 | 96.4 | 3551 | 3051 | 450 | 49 | 0.51 |

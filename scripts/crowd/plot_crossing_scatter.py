@@ -122,7 +122,8 @@ def main() -> None:
             hovertemplate="%{text}<br>jaywalking %{x}<br>total %{y}<extra>" + arguments.label + "</extra>",
         ))
         page.update_layout(title=TITLE, xaxis_title=x_title, yaxis_title=y_title, template="simple_white",
-                           height=620, xaxis={"rangemode": "tozero"}, yaxis={"rangemode": "tozero"},
+                           height=620, yaxis={"rangemode": "tozero"},
+                           xaxis={"range": [-0.03 * max(every_x + [1e-9]), 1.25 * max(every_x + [1e-9])]},
                            legend={"x": 0.98, "y": 0.02, "xanchor": "right", "yanchor": "bottom"})
         html = arguments.output.with_suffix(".html")
         page.write_html(html, include_plotlyjs=True)

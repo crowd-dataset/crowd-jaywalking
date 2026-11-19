@@ -127,9 +127,9 @@ On all three JAAD splits (train, val, and test; 309 videos):
 
 ### Crossings by country (CROWD samples, stages 1 and 2)
 
-Daytime footage filmed from a car, run through stages 1 and 2 with the VLM at full 16-bit precision (`vlm_quantization: null`; segments from `scripts/crowd/select_country_sample.py`, seed 0). The six-country sample fills each country to about 100 hours from its capital first (`--capitals-first`: whole source videos in random order), and only when the capital has too few hours from the next biggest cities. South Korea and Vietnam are a random sample of about 100 hours each. The country law (stage 3) is not used. A crossing counts as
+Daytime footage filmed from a car, run through stages 1 and 2 with the VLM at full 16-bit precision (`vlm_quantization: null`; segments from `scripts/crowd/select_country_sample.py`, seed 0). The six-country sample fills each country to about 100 hours from its capital first (`--capitals-first`: whole source videos in random order), and only when the capital has too few hours from the next biggest cities. South Korea, Vietnam and India are a random sample of about 100 hours each. The country law (stage 3) is not used. A crossing counts as
 **without zebra crossing or traffic light** (jaywalking in the table) when stage 1 finds it and the VLM confirms it as a crossing and finds neither a zebra crossing, a traffic light
-nor a crossing sign. 2,165 of the 2,204 planned segments finished (785 hours), processed on two machines and merged with each segment counted once.
+nor a crossing sign. 2,634 of the 2,674 planned segments finished (885 hours), processed on two machines and merged with each segment counted once.
 
 | Country | Segments | Hours | Crossings detected (stage 1) | At a zebra crossing or light | Rejected by the VLM (not a crossing) | Jaywalking | Jaywalking per hour |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -141,12 +141,13 @@ nor a crossing sign. 2,165 of the 2,204 planned segments finished (785 hours), p
 | Denmark | 240 | 97.3 | 2854 | 2413 | 367 | 62 | 0.64 |
 | South Korea | 185 | 100.1 | 1367 | 1205 | 138 | 23 | 0.23 |
 | Vietnam | 329 | 99.9 | 913 | 236 | 564 | **111** | **1.11** |
+| India | 469 | 99.8 | 994 | 221 | 519 | **248** | **2.48** |
 
 The table is also in [`docs/crossings_by_country.csv`](docs/crossings_by_country.csv). The tables in `docs` are made in two steps: `scripts/crowd/summarise_runs.py` summarises the finished runs on each machine where they are (counts per segment and movement aggregates; no boxes or video are copied), and `scripts/crowd/country_tables.py` merges those summaries, counting each segment once. The figures below are clickable: each opens an interactive version (hover for the values).
 
 [![Total crossings against jaywalking crossings](docs/images/crossings_scatter.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/crossings_scatter.html)
 
-The scatter plot (`scripts/crowd/plot_crossing_scatter.py`) puts the jaywalking crossings on the X axis and all crossings detected on the Y axis, one point per country. Filled points are this 16-bit run; open grey points are the earlier run with the VLM in 4-bit mode, with an arrow from each to the same country's 16-bit point. The same plot per hour of footage:
+The scatter plot (`scripts/crowd/plot_crossing_scatter.py`) puts the jaywalking crossings on the X axis and all crossings detected on the Y axis, one point per country. Filled points are this 16-bit run; open grey points are the earlier run with the VLM in 4-bit mode, with an arrow from each to the same country's 16-bit point (India was only run at 16 bits). The same plot per hour of footage:
 
 [![Crossings per hour of footage](docs/images/crossings_scatter_per_hour.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/crossings_scatter_per_hour.html)
 
@@ -156,11 +157,13 @@ Per country, the crossings detected, those at a zebra crossing or light, and the
 
 [![Crossings per country, South Korea and Vietnam](docs/images/korea_vietnam_crossings.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/korea_vietnam_crossings.html)
 
-* The three right-hand counts add up to the detected crossings, except for 36 crossings the VLM left `UNCERTAIN` (Sweden 12, Denmark 12, Bangladesh 8, Vietnam 2, France 1, South Korea 1). "Rejected by the VLM" means stage 1 flagged the person but the VLM crossing check answered NO to "is this person walking across the road?" (typically a person on the pavement, walking along the road or riding a bike or motorbike), so the person is not counted as a crossing and is never judged for a zebra crossing or light, and counts in neither of the other two columns. The jaywalking column is therefore a lower bound if the VLM wrongly rejected real crossings, and "Crossings detected" is an upper bound on the real crossings (detected minus rejected); Bangladesh (1189 of 2199) and Vietnam (564 of 913) have the most.
-* Bangladesh stands out with 9.5 jaywalking crossings per hour of footage, then Vietnam with 1.1; the other six countries have 0.7 or fewer. Japan has the most crossings of all (3878) and France the next most (3551), almost all at a zebra crossing or a traffic light. Bangladesh has only about 96 hours of daytime car footage in the mapping and only 12.6 of them are Dhaka (Sylhet has 69), so its rate describes Sylhet more than the capital.
-* 39 of the 2,204 segments failed after retries: 23 without a precomputed track file, 15 whose video could not be opened, and 1 whose video is not on the file server. That is why China, France, Denmark and Bangladesh are a few hours under 100 (the failed segments are listed in each run's `errors.csv`).
-* The hours of the finished segments are Tokyo 100.6; Paris 96.4; Copenhagen 97.3; Stockholm 97.5 and Gothenburg 1.6; Beijing 44.2, Shanghai 33.2 and Shenzhen 18.9; Sylhet 69.1, Dhaka 12.6 and 22 other Bangladeshi towns; Seoul 40.1, Busan 29.2 and 33 other South Korean cities; Hanoi 80.9 and 14 other Vietnamese places. The counts are not checked by hand; `scripts/crowd/make_verification_clips.py` cuts a random sample of clips, with the person's box drawn, to check them by eye.
-* **4-bit against 16-bit.** The earlier run ([`docs/crossings_by_country_4bit.csv`](docs/crossings_by_country_4bit.csv)) used the VLM in 4-bit mode on almost the same segments. The 16-bit VLM rejects fewer of the people stage 1 flags (3,369 against 3,907) and labels more crossings as jaywalking in every country (1,247 against 813; Bangladesh 903 against 596). Bangladesh and Vietnam have the highest rates in both, and the per-hour order of the other six changes a little. The 4-bit South Korea and Vietnam run was made earlier, and stage 1 found somewhat fewer crossings in it (Vietnam 749 against 913), so for those two countries the points also move up. Per country, 4-bit / 16-bit:
+[![Crossings in India](docs/images/india_crossings.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/india_crossings.html)
+
+* The three right-hand counts add up to the detected crossings, except for 42 crossings the VLM left `UNCERTAIN` (Sweden 12, Denmark 12, Bangladesh 8, India 6, Vietnam 2, France 1, South Korea 1). "Rejected by the VLM" means stage 1 flagged the person but the VLM crossing check answered NO to "is this person walking across the road?" (typically a person on the pavement, walking along the road or riding a bike or motorbike), so the person is not counted as a crossing and is never judged for a zebra crossing or light, and counts in neither of the other two columns. The jaywalking column is therefore a lower bound if the VLM wrongly rejected real crossings, and "Crossings detected" is an upper bound on the real crossings (detected minus rejected); Bangladesh (1189 of 2199), Vietnam (564 of 913) and India (519 of 994) have the most.
+* Bangladesh stands out with 9.5 jaywalking crossings per hour of footage, then India with 2.5 and Vietnam with 1.1; the other six countries have 0.7 or fewer. Japan has the most crossings of all (3878) and France the next most (3551), almost all at a zebra crossing or a traffic light. Bangladesh has only about 96 hours of daytime car footage in the mapping and only 12.6 of them are Dhaka (Sylhet has 69), so its rate describes Sylhet more than the capital.
+* 40 of the 2,674 segments failed after retries: 23 without a precomputed track file, 16 whose video could not be opened, and 1 whose video is not on the file server. That is why China, France, Denmark and Bangladesh are a few hours under 100 (the failed segments are listed in each run's `errors.csv`).
+* The hours of the finished segments are Tokyo 100.6; Paris 96.4; Copenhagen 97.3; Stockholm 97.5 and Gothenburg 1.6; Beijing 44.2, Shanghai 33.2 and Shenzhen 18.9; Sylhet 69.1, Dhaka 12.6 and 22 other Bangladeshi towns; Seoul 40.1, Busan 29.2 and 33 other South Korean cities; Hanoi 80.9 and 14 other Vietnamese places; Mumbai 21.0, New Delhi 13.4, Kolkata 13.1 and 96 other Indian places. The counts are not checked by hand; `scripts/crowd/make_verification_clips.py` cuts a random sample of clips, with the person's box drawn, to check them by eye.
+* **4-bit against 16-bit.** The earlier run ([`docs/crossings_by_country_4bit.csv`](docs/crossings_by_country_4bit.csv)) used the VLM in 4-bit mode on almost the same segments (India was added later and only run at 16 bits, so it is not in this comparison). The 16-bit VLM rejects fewer of the people stage 1 flags (3,369 against 3,907) and labels more crossings as jaywalking in every country (1,247 against 813; Bangladesh 903 against 596). Bangladesh and Vietnam have the highest rates in both, and the per-hour order of the other six changes a little. The 4-bit South Korea and Vietnam run was made earlier, and stage 1 found somewhat fewer crossings in it (Vietnam 749 against 913), so for those two countries the points also move up. Per country, 4-bit / 16-bit:
 
 | Country | Segments, 4-bit / 16-bit | Crossings detected | Jaywalking | Jaywalking per hour | Rejected by the VLM |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -185,6 +188,7 @@ The rate of crossings without a marking per hour of footage, with a 95% interval
 | Country | Jaywalking per hour (95% interval) | Share of judged crossings without a marking (95% interval) | Rejected by the VLM |
 | --- | ---: | ---: | ---: |
 | Bangladesh | **9.48** (8.05–10.89) | **90.1%** (88.1–91.8) | 54.1% |
+| India | **2.48** (1.97–3.04) | **52.9%** (48.4–57.4) | 52.2% |
 | Vietnam | **1.11** (0.80–1.45) | **32.0%** (27.3–37.1) | 61.8% |
 | Sweden | 0.68 (0.31–1.16) | 3.2% (2.6–4.1) | 10.1% |
 | Denmark | 0.64 (0.30–1.03) | 2.5% (2.0–3.2) | 12.9% |
@@ -192,11 +196,11 @@ The rate of crossings without a marking per hour of footage, with a 95% interval
 | South Korea | 0.23 (0.11–0.36) | 1.9% (1.3–2.8) | 10.1% |
 | China | 0.20 (0.09–0.33) | 1.0% (0.6–1.5) | 8.9% |
 | Japan | 0.13 (0.04–0.25) | 0.4% (0.2–0.6) | 6.2% |
-| **All** | 1.59 | 7.9% | 17.6% |
+| **All** | 1.69 | 9.2% | 19.3% |
 
-* Three groups: Bangladesh (about 9.5 per hour, 90% of judged crossings without a marking), Vietnam (about 1.1 per hour, 32%), and the other six (0.13 to 0.68 per hour, at most about 3%). Bangladesh's rate interval is far from all others. Vietnam's rate interval overlaps those of Sweden and Denmark, but its share of judged crossings without a marking (27–37%) is far from the other six (at most 4%). Within the six the intervals overlap, so their order is not settled by this sample.
+* Four groups: Bangladesh (about 9.5 per hour, 90% of judged crossings without a marking), India (about 2.5 per hour, 53%), Vietnam (about 1.1 per hour, 32%), and the other six (0.13 to 0.68 per hour, at most about 3%). Bangladesh's rate interval is far from all others, and India's (1.97–3.04) is apart from Bangladesh's and Vietnam's. Vietnam's rate interval overlaps those of Sweden and Denmark, but its share of judged crossings without a marking (27–37%) is far from the other six (at most 4%). Within the six the intervals overlap, so their order is not settled by this sample.
 * The rate per hour mixes how many people cross with how many of them use a marking; the share separates the two. Japan has the most crossings of all (38.6 detected per hour) and the lowest share without a marking (0.4%).
-* Bangladesh and Vietnam also have by far the most people rejected by the VLM as not crossing (54% and 62%, against 6–13% elsewhere): many people walk on the carriageway itself and motorcycles are common there, so more such people pass stage 1.
+* Bangladesh, India and Vietnam also have by far the most people rejected by the VLM as not crossing (54%, 52% and 62%, against 6–13% elsewhere): many people walk on the carriageway itself and motorcycles are common there, so more such people pass stage 1.
 
 ### How people move when they cross without a marking
 
@@ -207,7 +211,7 @@ For each person who crossed, with or without a marking, the movement is measured
 * **Crossed with others**: another person's crossing in the same segment overlapped theirs within 1 s.
 * **Vehicles in view**: the mean number of cars, buses, trucks and motorcycles in the CROWD tracks from 1 s before to 1 s after the crossing.
 
-Because these are measured in the image of a moving camera, the two groups are compared only **within** a country, where the footage is alike, and only where there are at least 20 crossings without a marking (China, 19, and Japan, 13, are left out). Movement could be measured for 1,184 crossings without a marking and 13,645 at one. The values with 95% intervals are in [`docs/crossing_movement.csv`](docs/crossing_movement.csv).
+Because these are measured in the image of a moving camera, the two groups are compared only **within** a country, where the footage is alike, and only where there are at least 20 crossings without a marking (China, 19, and Japan, 13, are left out). Movement could be measured for 1,426 crossings without a marking and 13,853 at one. The values with 95% intervals are in [`docs/crossing_movement.csv`](docs/crossing_movement.csv).
 
 [![Movement of people crossing without a marking and at one, per country](docs/images/crossing_movement.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/crossing_movement.html)
 
@@ -219,11 +223,12 @@ Because these are measured in the image of a moving camera, the two groups are c
 | Denmark | 58 / 2,276 | 41 / 72 | 2.3 / 2.4 | 0.97 / 0.81 |
 | Sweden | 66 / 1,900 | 44 / 77 | 2.1 / 2.1 | 0.88 / 0.79 |
 | South Korea | 23 / 1,158 | 26 / 74 | 3.7 / 3.5 | 0.77 / 0.79 |
+| India | 242 / 213 | 31 / 49 | 3.4 / 4.0 | 0.75 / 0.79 |
 
-* **People who cross without a marking cross alone more often.** This holds in all six countries compared, and in five of them the intervals are apart (in Bangladesh they overlap). Over all eight countries, 35.7% of crossings without a marking overlapped with another person's crossing, against 74.2% at a marking. It is the clearest difference.
-* **Fewer vehicles around them**, in five of the six countries (South Korea is the exception; 2.4 against 2.8 on average over all eight), consistent with waiting for a gap in traffic. The differences are small.
-* **Sideways speed has no common direction.** In France and Denmark people crossing without a marking moved faster sideways than at a marking (intervals apart); in Sweden the difference is smaller and the intervals overlap; in Bangladesh, Vietnam and South Korea the two groups are about the same (in Bangladesh slightly slower without a marking, with overlapping intervals).
-* **Stopping mid-crossing was rare in both groups** (8.8% without a marking, 5.0% at one, over all eight countries), with wide intervals where crossings without a marking are few; so was turning back (5.7% and 6.4%).
+* **People who cross without a marking cross alone more often.** This holds in all seven countries compared, and in six of them the intervals are apart (in Bangladesh they overlap). Over all nine countries, 34.9% of crossings without a marking overlapped with another person's crossing, against 73.9% at a marking. It is the clearest difference.
+* **Fewer vehicles around them**, in six of the seven countries (South Korea is the exception; 2.6 against 2.8 on average over all nine; in India the intervals are apart, 3.4 against 4.0), consistent with waiting for a gap in traffic. The differences are small.
+* **Sideways speed has no common direction.** In France and Denmark people crossing without a marking moved faster sideways than at a marking (intervals apart); in Sweden the difference is smaller and the intervals overlap; in Bangladesh, Vietnam, South Korea and India the two groups are about the same (in Bangladesh and India slightly slower without a marking, with overlapping intervals).
+* **Stopping mid-crossing was rare in both groups** (9.1% without a marking, 5.1% at one, over all nine countries), with wide intervals where crossings without a marking are few; so was turning back (5.9% and 6.3%).
 
 ### Why the VLM runs at 16-bit precision
 

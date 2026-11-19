@@ -73,6 +73,10 @@ def main() -> None:
     x_title = f"Jaywalking crossings{unit} (no zebra crossing or traffic light)"
     y_title = f"Total crossings{unit}"
     every_x = x + [v[0] for v in other.values()]
+    # a label goes below its point when another point sits where the label would be (just above and to the right)
+    span_x, span_y = 1.2 * max(every_x + [1e-9]), max(y + [1e-9])
+    below = [any(0 < ox - px < 0.13 * span_x and 0 < oy - py < 0.03 * span_y for ox, oy in zip(x, y))
+             for px, py in zip(x, y)]
 
     figure, axis = plt.subplots(figsize=(8, 6.5), constrained_layout=True)
     for c, (ox, oy, _) in other.items():
@@ -82,8 +86,8 @@ def main() -> None:
         axis.scatter([v[0] for v in other.values()], [v[1] for v in other.values()], s=55, facecolors="white",
                      edgecolors=COMPARE_COLOUR, linewidths=1.5, zorder=3, label=arguments.compare_label)
     axis.scatter(x, y, s=70, color=COLOUR, zorder=4, label=arguments.label if other else None)
-    for label, px, py in zip(labels, x, y):
-        axis.annotate(label, (px, py), textcoords="offset points", xytext=(7, 5), fontsize=10)
+    for label, px, py, low in zip(labels, x, y, below):
+        axis.annotate(label, (px, py), textcoords="offset points", xytext=(7, -14) if low else (7, 5), fontsize=10)
     axis.set_xlabel(x_title)
     axis.set_ylabel(y_title)
     axis.set_title(TITLE)
@@ -117,7 +121,8 @@ def main() -> None:
             ))
         page.add_trace(go.Scatter(
             x=[round(v, digits) for v in x], y=[round(v, digits) for v in y], text=labels, name=arguments.label,
-            mode="markers+text", textposition="top right", marker={"size": 12, "color": COLOUR},
+            mode="markers+text", textposition=["bottom right" if low else "top right" for low in below],
+            marker={"size": 12, "color": COLOUR},
             showlegend=bool(other),
             hovertemplate="%{text}<br>jaywalking %{x}<br>total %{y}<extra>" + arguments.label + "</extra>",
         ))

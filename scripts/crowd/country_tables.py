@@ -27,8 +27,8 @@ from pathlib import Path
 
 import numpy as np
 
-ORDER = ["Bangladesh", "Vietnam", "France", "Denmark", "Sweden", "South Korea", "China", "Japan"]
-TABLE_ORDER = ["China", "Japan", "Bangladesh", "France", "Sweden", "Denmark", "South Korea", "Vietnam"]
+ORDER = ["Bangladesh", "Vietnam", "France", "Denmark", "Sweden", "South Korea", "China", "Japan", "India"]
+TABLE_ORDER = ["China", "Japan", "Bangladesh", "France", "Sweden", "Denmark", "South Korea", "Vietnam", "India"]
 MIN_COMPARED = 20
 SEED = 20261116
 COUNTS = ("hours", "detected", "rejected", "compliant", "jaywalking", "uncertain")

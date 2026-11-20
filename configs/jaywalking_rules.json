@@ -257,6 +257,10 @@
       ],
       "decision": "all_required",
       "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "no_as_unknown": {
+        "conditions": ["DNK-R3", "DNK-R4"],
+        "reason": "Added by hand (Shadab, 2026-11-20), as for Viet Nam. The law applies only where a crossing is available, and the source sets no distance. Stage 3 sees a short dashcam view, which can show a crossing but cannot show that none is available nearby, so a NO on DNK-R3 counts as UNKNOWN. DNK-R4 (the person does not use that crossing) is answered NO when R3 is NO, so it is treated the same way."
+      },
       "legal_basis": "Illegal but culturally tolerated (Færdselsloven)",
       "fines": "Official fines exist at DKK 500, but are rarely levied against pedestrians.",
       "details": "The Danish Road Traffic Act mandates the use of crossings. While Danish pedestrian culture is generally rule-abiding, police enforcement efforts target cyclists and motor vehicles rather than mid-block pedestrian crossings on public streets. Private spaces are exempt.",
@@ -1128,6 +1132,10 @@
       ],
       "decision": "required_and_any_trigger",
       "decision_text": "All required conditions YES and at least one trigger condition YES → JAYWALKING. Any required condition NO, or all trigger conditions NO → NOT_JAYWALKING. Otherwise → INSUFFICIENT_EVIDENCE.",
+      "no_as_unknown": {
+        "conditions": ["POL-T1"],
+        "reason": "Added by hand (Shadab, 2026-11-20), as for Viet Nam. The law applies only where a crossing is available, and the source sets no distance. Stage 3 sees a short dashcam view, which can show a crossing but cannot show that none is available nearby, so a NO on POL-T1 counts as UNKNOWN. The other triggers (red signal, mobile device) are judged as before."
+      },
       "legal_basis": "Illegal (Prawo o ruchu drogowym Art. 14)",
       "fines": "Fines range from PLN 50 to PLN 100, increased significantly under recent road safety legislative amendments.",
       "details": "Pedestrians must use crossings and are strictly prohibited from crossing against red signals or using mobile devices while crossing public roads. Police enforcement has intensified following safety reforms.",
@@ -1397,6 +1405,10 @@
       ],
       "decision": "all_required",
       "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "no_as_unknown": {
+        "conditions": ["ZAF-R3", "ZAF-R4"],
+        "reason": "Added by hand (Shadab, 2026-11-20), as for Viet Nam. The law applies only where a crossing is available, and the source sets no distance. Stage 3 sees a short dashcam view, which can show a crossing but cannot show that none is available nearby, so a NO on ZAF-R3 counts as UNKNOWN. ZAF-R4 (the person does not use the available crossing) is answered NO when R3 is NO, so it is treated the same way."
+      },
       "legal_basis": "Illegal (National Road Traffic Act 93/1996 s. 58)",
       "fines": "Statutory fines up to ZAR 500.",
       "details": "Pedestrians must use crossings where available on public roads. Enforcement is highly inconsistent and largely absent in townships and informal settlements due to severe infrastructure gaps.",
@@ -1696,6 +1708,10 @@
       ],
       "decision": "all_required",
       "decision_text": "All required conditions YES → JAYWALKING. Any required condition NO → NOT_JAYWALKING. Any required condition UNKNOWN → INSUFFICIENT_EVIDENCE.",
+      "no_as_unknown": {
+        "conditions": ["VNM-R3", "VNM-R4"],
+        "reason": "Added by hand (Shadab, 2026-11-20). The law applies only where a crossing is available, and the source sets no distance. Stage 3 sees a short dashcam view, which can show a crossing but cannot show that none is available nearby, so NO on VNM-R3 counts as UNKNOWN. VNM-R4 (the person does not use the available crossing) is answered NO when R3 is NO, so it is treated the same way; stage 2 already found no crossing used in view."
+      },
       "legal_basis": "Illegal (Law on Road Traffic 2008 Art. 32)",
       "fines": "Fines range from VND 60,000 to VND 80,000.",
       "details": "Pedestrians must use crossings where available on public roads. Enforcement is symbolic at best, as local pedestrian culture involves continuous crossing across all points of traffic flow.",

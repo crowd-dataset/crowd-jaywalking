@@ -162,7 +162,7 @@ def parse(lines: list[str]) -> list[dict]:
 
 
 def keep_supplementary(entries: list[dict], output: Path) -> None:
-    """Carry the hand-added ``supplementary`` conditions of the old rule file over.
+    """Carry the hand-added ``supplementary`` conditions and ``no_as_unknown`` of the old rule file over.
 
     They are not in the PDF. A rebuild stops when a condition one of them overrides
     no longer exists, so it can be fixed by hand instead of silently dropped.
@@ -173,8 +173,20 @@ def keep_supplementary(entries: list[dict], output: Path) -> None:
     previous = json.loads(output.read_text(encoding="utf-8")).get("countries", {})
     by_iso = {entry["iso"]: entry for entry in entries}
     for iso, old in previous.items():
+        if old.get("added_by_hand"):
+            continue
+        if old.get("no_as_unknown"):
+            entry = by_iso.get(iso)
+            if entry is None:
+                raise SystemExit(f"{iso} has no_as_unknown but is no longer in the PDF")
+            ids = {item["id"] for item in entry["required"] + entry["triggers"]}
+            missing = sorted(set(old["no_as_unknown"]["conditions"]) - ids)
+            if missing:
+                raise SystemExit(f"{iso} no_as_unknown names missing conditions: {missing}")
+            entry["no_as_unknown"] = old["no_as_unknown"]
+            logger.info("Kept no_as_unknown for {}", iso)
         items = old.get("supplementary")
-        if not items or old.get("added_by_hand"):
+        if not items:
             continue
         entry = by_iso.get(iso)
         if entry is None:

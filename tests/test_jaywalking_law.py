@@ -225,6 +225,47 @@ class JudgeTests(unittest.TestCase):
         verdict = self.judge.judge(location, self._vlm({"BGD-R1": "YES", "BGD-R3": "YES", "BGD-R4": "YES"}))
         self.assertEqual(verdict.label, LawLabel.JAYWALKING)
 
+    def test_vietnam_no_visible_crossing_is_insufficient_evidence(self):
+        location = LawLocation("VNM", None, "Hanoi")
+        # A dashcam view cannot show that no crossing is available nearby.
+        verdict = self.judge.judge(location, self._vlm({"VNM-R1": "YES", "VNM-R3": "NO", "VNM-R4": "NO"}))
+        self.assertEqual(verdict.label, LawLabel.INSUFFICIENT_EVIDENCE)
+        self.assertEqual(verdict.verdict_sources["VNM-R3"], "no_as_unknown")
+        verdict = self.judge.judge(location, self._vlm({"VNM-R1": "YES", "VNM-R3": "YES", "VNM-R4": "YES"}))
+        self.assertEqual(verdict.label, LawLabel.JAYWALKING)
+        # A NO on the public road condition still rules the claim out.
+        verdict = self.judge.judge(location, self._vlm({"VNM-R1": "NO", "VNM-R3": "YES", "VNM-R4": "YES"}))
+        self.assertEqual(verdict.label, LawLabel.NOT_JAYWALKING)
+
+    def test_denmark_and_south_africa_no_visible_crossing_is_insufficient_evidence(self):
+        for iso in ("DNK", "ZAF"):
+            no = self._vlm({f"{iso}-R1": "YES", f"{iso}-R3": "NO", f"{iso}-R4": "NO"})
+            self.assertEqual(self.judge.judge(LawLocation(iso), no).label, LawLabel.INSUFFICIENT_EVIDENCE)
+            yes = self._vlm({f"{iso}-R1": "YES", f"{iso}-R3": "YES", f"{iso}-R4": "YES"})
+            self.assertEqual(self.judge.judge(LawLocation(iso), yes).label, LawLabel.JAYWALKING)
+
+    def test_poland_no_visible_crossing_leaves_the_other_triggers(self):
+        def poland(t1, t2):
+            answers = {"POL-R1": "YES", "POL-T1": t1, "POL-T2": t2, "POL-T3": "NO"}
+            return self.judge.judge(LawLocation("POL"), self._vlm(answers)).label
+
+        # No crossing in view and no other trigger: no longer NOT_JAYWALKING.
+        self.assertEqual(poland("NO", "NO"), LawLabel.INSUFFICIENT_EVIDENCE)
+        self.assertEqual(poland("NO", "YES"), LawLabel.JAYWALKING)
+        self.assertEqual(poland("YES", "NO"), LawLabel.JAYWALKING)
+
+    def test_no_as_unknown_is_validated(self):
+        import json
+        import tempfile
+
+        payload = json.loads(RULES.read_text(encoding="utf-8"))
+        payload["countries"]["VNM"]["no_as_unknown"]["conditions"] = ["VNM-R9"]
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "rules.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                RuleBook(path)
+
     def test_countries_without_supplementary_conditions_are_unchanged(self):
         self.judge.judge(LawLocation("AUS"), self._vlm({"AUS-R1": "YES", "AUS-R3": "YES", "AUS-R4": "YES"}))
         self.assertNotIn("Also evaluate", self.asked[-1])

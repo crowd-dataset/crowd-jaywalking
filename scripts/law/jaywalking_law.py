@@ -71,6 +71,10 @@ class RuleSet:
     # Conditions added to the rule file by hand, not taken from the PDF. Each has an
     # ``id``, a ``text`` for the VLM, and ``overrides``: {answer: {condition id: verdict}}.
     supplementary: tuple[dict[str, Any], ...] = ()
+    # Conditions whose NO from the VLM counts as UNKNOWN, added to the rule file by hand
+    # (``no_as_unknown``: {"conditions": [...], "reason": "..."}): a dashcam can show that a
+    # crossing is there, but not that none is available beyond its view.
+    no_as_unknown: tuple[str, ...] = ()
 
     @property
     def condition_ids(self) -> list[str]:
@@ -117,6 +121,7 @@ class RuleBook:
                 decision_text=entry["decision_text"],
                 legal_basis=entry["legal_basis"],
                 supplementary=tuple(entry.get("supplementary", ())),
+                no_as_unknown=tuple(entry.get("no_as_unknown", {}).get("conditions", ())),
             )
             for iso, entry in payload["countries"].items()
         }
@@ -169,6 +174,9 @@ def prefilled_verdicts(rule: RuleSet, location: LawLocation) -> dict[str, tuple[
 def validate_supplementary(rule: RuleSet) -> None:
     """A supplementary condition must have a new ID and override only real conditions."""
 
+    unknown = sorted(set(rule.no_as_unknown) - set(rule.condition_ids))
+    if unknown:
+        raise ValueError(f"{rule.iso}: no_as_unknown names missing conditions: {unknown}")
     for item in rule.required + rule.triggers:
         if item.get("evidence") not in (None, "approach"):
             raise ValueError(f"{item['id']}: evidence can only be 'approach'")
@@ -393,6 +401,10 @@ class JaywalkingLawJudge:
             supplementary = {item["id"]: answers.pop(item["id"]) for item in extra}
             verdicts.update(answers)
             sources.update({key: "vlm" for key in answers})
+            for key in rule.no_as_unknown:
+                if answers.get(key) == "NO":
+                    verdicts[key] = "UNKNOWN"
+                    sources[key] = "no_as_unknown"
             for item in extra:
                 apply_supplementary(item, supplementary[item["id"]], verdicts, sources)
             sources.update({key: "vlm" for key in supplementary})

@@ -346,6 +346,9 @@ class CrowdAnalysisRunner:
                 except Exception as error:
                     failures.append(self._failure(segment, "inference", error))
                     logger.info("  ERROR {}: {}", type(error).__name__, error)
+                    if not self.settings["keep_segment_videos"]:
+                        # A failed segment has no result to keep its clip for; it is cut again on retry.
+                        (self.segments / f"{segment.video_key}.mp4").unlink(missing_ok=True)
 
             if (
                 prepared.downloaded_this_run

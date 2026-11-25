@@ -11,7 +11,12 @@ drew them (``EvidenceBuilder`` with the configured evidence settings), from what
 Claims whose images are already there are skipped; a claim without its clip or track file is
 counted and reported, never guessed.
 
+With ``--fetch``, a missing claim clip is cut again from its CROWD source video, which is downloaded as
+the run downloaded it (``crowd_analysis.py``'s settings); after its images are drawn the clip is deleted,
+and so is the source video once its last claim is done, so no video is kept.
+
     uv run python scripts/law/rebuild_evidence.py results/india_a_16bit results/vietnam_16bit
+    uv run python scripts/law/rebuild_evidence.py --fetch results/us_a_16bit
 """
 
 from __future__ import annotations
@@ -62,8 +67,43 @@ def frame_count(path: Path) -> int:
         capture.release()
 
 
-def rebuild(run: Path, builder: EvidenceBuilder) -> dict[str, int]:
-    counts = {"claims": 0, "built": 0, "already": 0, "no_clip": 0, "no_tracks": 0, "failed": 0}
+class ClipFetcher:
+    """Cut a claim clip again from its CROWD source video, downloading the video as the run did.
+
+    The source video is kept only while consecutive claims need it (details are read in name order, so
+    the segments of one video come together) and deleted when the next video is needed or at the end.
+    """
+
+    def __init__(self) -> None:
+        from scripts.crowd.crowd_analysis import CrowdAnalysisRunner
+
+        self.runner = CrowdAnalysisRunner(ProjectConfig.load())
+        self.video_id: str | None = None
+        self.prepared = None
+
+    def clip(self, segment: dict, destination: Path) -> Path:
+        from scripts.crowd.crowd_source import extract_video_segment
+
+        if segment["video_id"] != self.video_id:
+            self.release()
+            self.prepared = self.runner._prepare_source_video(segment["video_id"])
+            self.video_id = segment["video_id"]
+        return extract_video_segment(
+            source=self.prepared.path,
+            destination=destination,
+            start_second=int(segment["start_second"]),
+            end_second=int(segment["end_second"]),
+            end_margin_seconds=float(self.runner.settings["trim_end_margin_seconds"]),
+        ).path
+
+    def release(self) -> None:
+        if self.prepared is not None and self.prepared.downloaded_this_run:
+            self.prepared.path.unlink(missing_ok=True)
+        self.prepared, self.video_id = None, None
+
+
+def rebuild(run: Path, builder: EvidenceBuilder, fetcher: ClipFetcher | None = None) -> dict[str, int]:
+    counts = {"claims": 0, "built": 0, "already": 0, "no_clip": 0, "no_tracks": 0, "failed": 0, "fetched": 0}
     for path in sorted((run / "details").glob("*.json")):
         payload = json.loads(path.read_text(encoding="utf-8"))
         result = payload["result"]
@@ -74,6 +114,7 @@ def rebuild(run: Path, builder: EvidenceBuilder) -> dict[str, int]:
         clip = run / "segments" / f"{stem}.mp4"
         tracks = Path(payload.get("precomputed_tracks") or "")
         observations = None
+        fetched = False
         for decision in claims:
             counts["claims"] += 1
             event = decision["event"]
@@ -84,13 +125,20 @@ def rebuild(run: Path, builder: EvidenceBuilder) -> dict[str, int]:
             if any(folder.glob("frame_*_context.jpg")):
                 counts["already"] += 1
                 continue
-            if not clip.is_file():
-                counts["no_clip"] += 1
-                print(f"  no clip: {run.name}/{stem} person {decision['person_id']}")
-                continue
             if not tracks.is_file():
                 counts["no_tracks"] += 1
                 print(f"  no track file: {run.name}/{stem} ({tracks})")
+                continue
+            if not clip.is_file() and fetcher is not None and not fetched:
+                fetched = True
+                try:
+                    clip = fetcher.clip(payload["segment"], clip)
+                    counts["fetched"] += 1
+                except Exception as error:
+                    print(f"  fetch failed: {run.name}/{stem}: {type(error).__name__}: {error}", flush=True)
+            if not clip.is_file():
+                counts["no_clip"] += 1
+                print(f"  no clip: {run.name}/{stem} person {decision['person_id']}")
                 continue
             try:
                 if observations is None:
@@ -103,16 +151,22 @@ def rebuild(run: Path, builder: EvidenceBuilder) -> dict[str, int]:
             except Exception as error:  # report and go on; stage 3 reports the claim as missing
                 counts["failed"] += 1
                 print(f"  failed: {run.name}/{stem} person {decision['person_id']}: {type(error).__name__}: {error}")
+        if fetched:
+            clip.unlink(missing_ok=True)  # cut for these images only; stage 3 reads the images
+    if fetcher is not None:
+        fetcher.release()
     return counts
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("runs", nargs="+", type=Path, help="results folders of finished runs")
+    parser.add_argument("--fetch", action="store_true", help="cut missing claim clips again from CROWD")
     arguments = parser.parse_args()
     builder = EvidenceBuilder(ProjectConfig.load().evidence_settings())
+    fetcher = ClipFetcher() if arguments.fetch else None
     for run in arguments.runs:
-        print(run.name, rebuild(run, builder), flush=True)
+        print(run.name, rebuild(run, builder, fetcher), flush=True)
 
 
 if __name__ == "__main__":

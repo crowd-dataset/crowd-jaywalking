@@ -22,6 +22,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.text import Text  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -41,6 +42,80 @@ def points(rows: list[dict], per_hour: bool) -> dict[str, tuple[float, float, fl
         hours = float(row["hours"])
         out[str(row["country"])] = (float(row["unmarked"]) * scale, float(row["detected"]) * scale, hours)
     return out
+
+
+# Where a label may go around its point: direction (x, y sign), alignment, and the matching Plotly text position;
+# each direction is tried close to the point first, then further out with a leader line.
+DIRECTIONS = [((1, 1), "left", "bottom", "top right"), ((1, -1), "left", "top", "bottom right"),
+              ((-1, 1), "right", "bottom", "top left"), ((-1, -1), "right", "top", "bottom left"),
+              ((1, 0), "left", "center", "middle right"), ((-1, 0), "right", "center", "middle left")]
+DISTANCES = (6, 16, 28, 42, 60, 80)
+
+
+def place_labels(figure, axis, labels, x, y, marker_x, marker_y, fontsize=10) -> list[str]:
+    """Put each label at the nearest place around its point that overlaps no point, no label and no leader line.
+
+    Labels are placed from the top of the plot down; when every place overlaps, the one with the least
+    overlap is used. Returns the Plotly text position of each label.
+    """
+
+    figure.canvas.draw()  # settle the layout first, then keep it, so the pixel boxes below stay where they are
+    figure.set_layout_engine("none")
+    renderer = figure.canvas.get_renderer()
+    to_pixels = axis.transData.transform
+    radius = 4 * figure.dpi / 72
+    markers = [to_pixels((mx, my)) for mx, my in zip(marker_x, marker_y)]
+    inside = axis.get_window_extent(renderer)
+    taken, leaders, positions = [], [], [""] * len(labels)
+
+    def crosses(a, b, c, d) -> bool:
+        def turn(p, q, r):
+            return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+        return turn(a, b, c) * turn(a, b, d) < 0 and turn(c, d, a) * turn(c, d, b) < 0
+
+    def cost(box) -> float:
+        area = sum(max(0, min(box.x1, t.x1) - max(box.x0, t.x0)) * max(0, min(box.y1, t.y1) - max(box.y0, t.y0))
+                   for t in taken)
+        hits = sum(box.x0 - radius < mx < box.x1 + radius and box.y0 - radius < my < box.y1 + radius
+                   for mx, my in markers)
+        outside = box.x1 > inside.x1 or box.x0 < inside.x0 or box.y0 < inside.y0 or box.y1 > inside.y1
+        return 20 * area + 1e4 * hits + (1e6 if outside else 0)
+
+    for i in sorted(range(len(labels)), key=lambda k: -y[k]):
+        best = None
+        for distance in DISTANCES:
+            for (dx, dy), ha, va, position in DIRECTIONS:
+                offset = (dx * distance, dy * distance * 0.8)
+                arrow = {"arrowstyle": "-", "color": "0.55", "lw": 0.7, "shrinkA": 1, "shrinkB": 5} \
+                    if distance > DISTANCES[0] else None
+                text = axis.annotate(labels[i], (x[i], y[i]), textcoords="offset points", xytext=offset,
+                                     fontsize=fontsize, ha=ha, va=va, arrowprops=arrow)
+                text.update_positions(renderer)
+                box = Text.get_window_extent(text, renderer)  # the text alone, without its leader line
+                score = cost(box) + distance ** 2 / 10  # nearer places win; far ones only to avoid overlap
+                start = to_pixels((x[i], y[i]))
+                end = (min(max(start[0], box.x0), box.x1), min(max(start[1], box.y0), box.y1))
+                if arrow:  # a leader line must not pass through another point, label or leader line
+                    score += 5e3 * sum(crosses(start, end, a, b) for a, b in leaders)
+                    for step in range(1, 10):
+                        px = start[0] + (end[0] - start[0]) * step / 10
+                        py = start[1] + (end[1] - start[1]) * step / 10
+                        score += 5e3 * sum(t.x0 < px < t.x1 and t.y0 < py < t.y1 for t in taken)
+                        score += 5e3 * sum(abs(px - mx) < radius and abs(py - my) < radius for mx, my in markers
+                                           if abs(mx - start[0]) > 1 or abs(my - start[1]) > 1)
+                if best is None or score < best[0]:
+                    if best is not None:
+                        best[1].remove()
+                    best = (score, text, box, position, (start, end) if arrow else None)
+                else:
+                    text.remove()
+            if best[0] <= distance ** 2 / 10:  # a place without overlap at this distance
+                break
+        taken.append(best[2])
+        if best[4] is not None:
+            leaders.append(best[4])
+        positions[i] = best[3]
+    return positions
 
 
 def main() -> None:
@@ -73,12 +148,8 @@ def main() -> None:
     x_title = f"Jaywalking crossings{unit} (no zebra crossing or traffic light)"
     y_title = f"Total crossings{unit}"
     every_x = x + [v[0] for v in other.values()]
-    # a label goes below its point when another point sits where the label would be (just above and to the right)
-    span_x, span_y = 1.2 * max(every_x + [1e-9]), max(y + [1e-9])
-    below = [any(0 < ox - px < 0.13 * span_x and 0 < oy - py < 0.03 * span_y for ox, oy in zip(x, y))
-             for px, py in zip(x, y)]
 
-    figure, axis = plt.subplots(figsize=(8, 6.5), constrained_layout=True)
+    figure, axis = plt.subplots(figsize=(8.5, 7.5), constrained_layout=True)
     for c, (ox, oy, _) in other.items():
         axis.annotate("", xy=main_points[c][:2], xytext=(ox, oy), zorder=2,
                       arrowprops={"arrowstyle": "->", "color": COMPARE_COLOUR, "lw": 1, "shrinkA": 4, "shrinkB": 5})
@@ -86,13 +157,12 @@ def main() -> None:
         axis.scatter([v[0] for v in other.values()], [v[1] for v in other.values()], s=55, facecolors="white",
                      edgecolors=COMPARE_COLOUR, linewidths=1.5, zorder=3, label=arguments.compare_label)
     axis.scatter(x, y, s=70, color=COLOUR, zorder=4, label=arguments.label if other else None)
-    for label, px, py, low in zip(labels, x, y, below):
-        axis.annotate(label, (px, py), textcoords="offset points", xytext=(7, -14) if low else (7, 5), fontsize=10)
     axis.set_xlabel(x_title)
     axis.set_ylabel(y_title)
     axis.set_title(TITLE)
     axis.set_xlim(left=-0.03 * max(every_x + [1e-9]), right=1.2 * max(every_x + [1e-9]))
     axis.set_ylim(bottom=0)
+    positions = place_labels(figure, axis, labels, x, y, every_x, y + [v[1] for v in other.values()])
     axis.grid(alpha=0.3, zorder=0)
     axis.spines[["top", "right"]].set_visible(False)
     if other:
@@ -121,7 +191,7 @@ def main() -> None:
             ))
         page.add_trace(go.Scatter(
             x=[round(v, digits) for v in x], y=[round(v, digits) for v in y], text=labels, name=arguments.label,
-            mode="markers+text", textposition=["bottom right" if low else "top right" for low in below],
+            mode="markers+text", textposition=positions,
             marker={"size": 12, "color": COLOUR},
             showlegend=bool(other),
             hovertemplate="%{text}<br>jaywalking %{x}<br>total %{y}<extra>" + arguments.label + "</extra>",

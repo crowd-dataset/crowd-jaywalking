@@ -262,7 +262,7 @@ Stage 3 (`scripts/law/run_jaywalking_law.py`, Qwen3.5-27B at 4-bit) judged the c
 | Türkiye | 135 | 135 | 135 | 0 | 0 | Crossing anywhere other than a marked crossing is an offence |
 | Indonesia | 75 | 75 | 74 | 0 | 1 | Crossing outside a designated crossing facility |
 | Thailand | 59 | 59 | 55 | 0 | 4 | Crossing outside a designated crossing area |
-| Poland | 43 | 43 | 43 | 0 | 0 | "A crossing is available and not used": see the note below |
+| Poland | 43 | 43 | 4 | 0 | 39 | Only where a crossing is available (as South Africa), or using a phone while crossing (the 4) |
 | South Korea | 23 | 23 | 20 | 0 | 3 | Crossing outside a crosswalk |
 | Brazil | 43 | 43 | 0 | 25 | 18 | An offence only where traffic is controlled or a footbridge is not used |
 | United States | 25 | 25 | 2 | 15 | 8 | By state: New York City decriminalised, California needs a hazard, most other states undecided |
@@ -272,7 +272,7 @@ Stage 3 (`scripts/law/run_jaywalking_law.py`, Qwen3.5-27B at 4-bit) judged the c
 | India | 248 | 136 | 0 | 0 | 136 | The rule set names no conditions |
 
 * **The verdict follows the wording of the law more than the scene.** Where the law forbids crossing outside a marked crossing (Türkiye, Indonesia, Thailand, South Korea), nearly every crossing without a marking is `JAYWALKING`. Where it applies only where a crossing is available and sets no distance (South Africa, Vietnam), a short dashcam view cannot settle it, and nearly all are `INSUFFICIENT_EVIDENCE`. Brazil forbids it only where traffic is controlled or a footbridge is there, which a crossing away from any marking rarely is.
-* **Poland is probably wrong.** Its law is worded like South Africa's (only where a crossing is available), but the VLM answered YES to "a crossing is available and the pedestrian does not use it" in all 43 claims, in 35 of them while writing that no crossing is present. `no_as_unknown` turns a NO there into UNKNOWN but not such a YES, so these 43 verdicts need a hand check or a rule change before they are used.
+* **Poland: a condition that asks two things.** `POL-T1` ("a crossing is available and the pedestrian does not use it") was answered YES in all 43 claims at first, in 35 of them while the VLM wrote that no crossing was present, so all 43 came out `JAYWALKING`. The hand-added condition `POL-X1` now asks only whether a crossing is visible near the crossing place; when it is not (NO or UNKNOWN), `POL-T1` counts as UNKNOWN, as for South Africa and Vietnam. It was NO for all 43; the 4 still `JAYWALKING` are people using a phone while crossing (`POL-T3`).
 * Per run, the verdicts are in `results/<run>/jaywalking_law/verdicts.jsonl` on the machine that ran it.
 
 ### Why the VLM runs at 16-bit precision

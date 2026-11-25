@@ -245,14 +245,27 @@ class JudgeTests(unittest.TestCase):
             self.assertEqual(self.judge.judge(LawLocation(iso), yes).label, LawLabel.JAYWALKING)
 
     def test_poland_no_visible_crossing_leaves_the_other_triggers(self):
-        def poland(t1, t2):
-            answers = {"POL-R1": "YES", "POL-T1": t1, "POL-T2": t2, "POL-T3": "NO"}
+        def poland(t1, t2, x1="YES"):
+            answers = {"POL-R1": "YES", "POL-T1": t1, "POL-T2": t2, "POL-T3": "NO", "POL-X1": x1}
             return self.judge.judge(LawLocation("POL"), self._vlm(answers)).label
 
         # No crossing in view and no other trigger: no longer NOT_JAYWALKING.
         self.assertEqual(poland("NO", "NO"), LawLabel.INSUFFICIENT_EVIDENCE)
         self.assertEqual(poland("NO", "YES"), LawLabel.JAYWALKING)
         self.assertEqual(poland("YES", "NO"), LawLabel.JAYWALKING)
+
+    def test_poland_available_crossing_needs_a_crossing_in_view(self):
+        def poland(t1, x1):
+            answers = {"POL-R1": "YES", "POL-T1": t1, "POL-T2": "NO", "POL-T3": "NO", "POL-X1": x1}
+            return self.judge.judge(LawLocation("POL"), self._vlm(answers))
+
+        # POL-T1 answered YES while no crossing is in view: undecided, not an offence.
+        verdict = poland("YES", "NO")
+        self.assertEqual(verdict.label, LawLabel.INSUFFICIENT_EVIDENCE)
+        self.assertEqual(verdict.verdict_sources["POL-T1"], "POL-X1")
+        self.assertEqual(poland("YES", "UNKNOWN").label, LawLabel.INSUFFICIENT_EVIDENCE)
+        self.assertEqual(poland("YES", "YES").label, LawLabel.JAYWALKING)
+        self.assertIn("POL-X1:", self.asked[-1])
 
     def test_no_as_unknown_is_validated(self):
         import json

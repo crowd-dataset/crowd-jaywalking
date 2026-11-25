@@ -1139,7 +1139,23 @@
       "legal_basis": "Illegal (Prawo o ruchu drogowym Art. 14)",
       "fines": "Fines range from PLN 50 to PLN 100, increased significantly under recent road safety legislative amendments.",
       "details": "Pedestrians must use crossings and are strictly prohibited from crossing against red signals or using mobile devices while crossing public roads. Police enforcement has intensified following safety reforms.",
-      "source": "Internetowy System Aktów Prawnych Poland"
+      "source": "Internetowy System Aktów Prawnych Poland",
+      "supplementary": [
+        {
+          "id": "POL-X1",
+          "text": "A pedestrian crossing (a zebra crossing, or a crossing at a traffic light) is visible in these images near the place where the target crosses, on the same road, so the target could have walked to it and used it. Answer NO when no such crossing is visible on this stretch of road. Answer UNKNOWN when the road cannot be seen well enough to tell.",
+          "overrides": {
+            "NO": {
+              "POL-T1": "UNKNOWN"
+            },
+            "UNKNOWN": {
+              "POL-T1": "UNKNOWN"
+            }
+          },
+          "legal_basis": "Prawo o ruchu drogowym Art. 13-14: a pedestrian must use a crossing where one is available.",
+          "note": "Added by hand (Shadab, 2026-11-25), not taken from Global_Jaywalking_Laws.pdf. POL-T1 asks two things at once (a crossing is available, and it is not used); on 43 CROWD claims the VLM answered YES to it in every case, in 35 while stating that no crossing was present, so no_as_unknown (which catches only NO) did not apply. POL-X1 asks the first part alone; a YES on POL-T1 stands only when a crossing is visible, as for Viet Nam, Denmark and South Africa. Kept by build_jaywalking_rules.py when the PDF is rebuilt."
+        }
+      ]
     },
     "PRT": {
       "number": 35,

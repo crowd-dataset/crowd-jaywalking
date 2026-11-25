@@ -5,7 +5,7 @@ many runs or machines finished it; a planned segment that no run finished counts
 
     uv run python scripts/crowd/country_tables.py summary_spark.json summary_wsl5090.json --output-dir docs
 
-Writes three tables:
+Writes four tables:
 
 * crossings_by_country.csv: per country the segments, hours, crossings detected (stage 1), at a zebra crossing
   or traffic light, rejected by the VLM, without a marking (jaywalking) and jaywalking per hour.
@@ -14,6 +14,10 @@ Writes three tables:
 * crossing_movement.csv: per country and group (without a marking, at a marking) the people whose movement
   could be measured and the movement measures with 95% intervals; `compared` is True where there are at least
   20 people without a marking.
+* infrastructure_by_country.csv: per country the street scenes (segments) where someone crossed and the marking
+  check judged it, the scenes among them without crossing infrastructure (no crossing was judged at a zebra
+  crossing, traffic light or crossing sign), and the crossings without a marking. Both counts come from the same
+  marking check, so they are not independent.
 """
 
 from __future__ import annotations
@@ -122,8 +126,10 @@ def summarise(data: dict) -> dict[str, dict]:
         bootstrap_rate(rng, segments, "detected")  # keeps the random draws the same as in earlier tables
         share, share_low, share_high = wilson(totals["jaywalking"], totals["jaywalking"] + totals["compliant"])
         planned = len(data["planned"].get(country, ()))
+        judged = [s for s in segments if s["jaywalking"] + s["compliant"] > 0]
         summary[country] = dict(totals, segments=len(segments), planned=planned, rate=rate, low=low, high=high,
-                                share=share, share_low=share_low, share_high=share_high)
+                                share=share, share_low=share_low, share_high=share_high, scenes_judged=len(judged),
+                                scenes_without_infrastructure=sum(s["compliant"] == 0 for s in judged))
     return summary
 
 
@@ -148,6 +154,14 @@ def write_tables(data: dict, summary: dict[str, dict], output_dir: Path) -> None
                              s["jaywalking"], s["uncertain"], f"{s['rate']:.3f}", f"{s['low']:.3f}",
                              f"{s['high']:.3f}", f"{100 * s['share']:.2f}", f"{100 * s['share_low']:.2f}",
                              f"{100 * s['share_high']:.2f}", f"{100 * s['rejected'] / max(1, s['detected']):.2f}"])
+
+    with (output_dir / "infrastructure_by_country.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["country", "segments", "hours", "scenes_judged", "scenes_without_infrastructure",
+                         "crossings_without_zebra_or_light"])
+        for c, s in summary.items():
+            writer.writerow([c, s["segments"], f"{s['hours']:.3f}", s["scenes_judged"],
+                             s["scenes_without_infrastructure"], s["jaywalking"]])
 
     lo, _, step = data["bins"]["lateral_speed"]
     with (output_dir / "crossing_movement.csv").open("w", encoding="utf-8", newline="") as handle:
@@ -181,7 +195,7 @@ def main() -> None:
     write_tables(data, summary, arguments.output_dir)
     done = sum(s["segments"] for s in summary.values())
     planned = sum(s["planned"] for s in summary.values())
-    print(f"wrote 3 tables to {arguments.output_dir}: {done} of {planned} planned segments, {planned - done} failed")
+    print(f"wrote 4 tables to {arguments.output_dir}: {done} of {planned} planned segments, {planned - done} failed")
     for c, s in summary.items():
         print(f"  {c}: {s['segments']}/{s['planned']} segments, {s['hours']:.1f} h, {s['jaywalking']} jaywalking")
 

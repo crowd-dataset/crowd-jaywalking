@@ -1,0 +1,17 @@
+country,segments,hours,scenes_judged,scenes_without_infrastructure,crossings_without_zebra_or_light
+Bangladesh,296,95.295,181,152,903
+Vietnam,329,99.940,93,27,111
+France,319,96.379,228,1,49
+Denmark,240,97.298,172,2,62
+Sweden,370,99.085,135,7,67
+South Korea,185,100.099,113,2,23
+China,221,96.353,135,0,19
+Japan,205,100.592,146,1,13
+India,469,99.830,150,81,248
+Brazil,246,86.051,125,13,43
+Indonesia,369,97.728,84,35,75
+Poland,278,99.545,132,3,43
+South Africa,387,96.654,147,28,95
+Thailand,240,97.882,64,21,59
+Türkiye,186,80.879,89,10,135
+United States,186,94.050,93,5,25

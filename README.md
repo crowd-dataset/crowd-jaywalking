@@ -20,7 +20,6 @@ The target is the [CROWD dataset](https://github.com/crowd-dataset/crowd): about
 * [Configuration reference](#configuration-reference)
 * [Outputs](#outputs)
 * [Earlier designs](#earlier-designs)
-* [Limitations](#limitations)
 * [Repository structure](#repository-structure)
 
 ## How it works
@@ -57,7 +56,7 @@ Each stage answers one question, and a claim needs every stage to agree. Any dou
 2. **Stage 2: the VLM checks the snippet** (Qwen3-VL-8B-Instruct).
    * **Crossing check** (prompt `v3`): does the person walk across the road the camera car is driving on, in front of the car? Crossing a side street or another road is not of interest. Only a clear YES continues.
    * **Infrastructure check** (prompt `zebra_light_v5`): is there a zebra crossing, a traffic light, or a pedestrian crossing sign? This prompt never judges the person. A fixed policy then requires every infrastructure answer to be NO, for this person and for every other crossing person in the clip.
-3. **Stage 3: the law.** Whether such a crossing is jaywalking depends on the country. A separate step (`scripts/law/run_jaywalking_law.py`) retrieves the rule set of the video's country from `Global_Jaywalking_Laws.pdf` (51 countries, plus a hand-written Bangladesh set), asks the VLM YES, NO, or UNKNOWN on each numbered condition (plus any hand-added `supplementary` condition of that country, see [Limitations](#limitations)), and computes the label from the rule set's decision rule. The model never chooses the label.
+3. **Stage 3: the law.** Whether such a crossing is jaywalking depends on the country. A separate step (`scripts/law/run_jaywalking_law.py`) retrieves the rule set of the video's country from `Global_Jaywalking_Laws.pdf` (51 countries, plus a hand-written Bangladesh set), asks the VLM YES, NO, or UNKNOWN on each numbered condition (plus any hand-added `supplementary` condition of that country), and computes the label from the rule set's decision rule. The model never chooses the label.
 
 After a run, an optional **approach review** (`scripts/review/run_approach_review.py`) looks at frames from a few seconds before each claimed crossing and flags a zebra crossing on the road ahead that the crossing window itself misses. It is a flag for a manual look, not a veto: nothing is dropped.
 
@@ -218,6 +217,18 @@ The rate of crossings without a marking per hour of footage, with a 95% interval
 * The rate per hour mixes how many people cross with how many of them use a marking; the share separates the two. Japan has the most crossings of all (38.6 detected per hour) and the lowest share without a marking (0.4%). Indonesia and Thailand have few crossings (5–6 per hour) but a large share of them without a marking (36% and 23%), so their rates per hour are moderate.
 * Indonesia, Vietnam, Bangladesh, India and Thailand also have by far the most people rejected by the VLM as not crossing (45–64%, against 8–28% elsewhere): many people walk on the carriageway itself and motorcycles are common there, so more such people pass stage 1.
 
+### Unmarked crossings and missing crossing infrastructure
+
+Where scenes have no crossing infrastructure, more people cross without a marking. A street scene (segment) counts as *without crossing infrastructure* when someone crossed in it, the marking check judged the crossing, and no crossing in it was at a zebra crossing, traffic light or crossing sign. The counts per country are in [`docs/infrastructure_by_country.csv`](docs/infrastructure_by_country.csv), and the figures are drawn by `scripts/crowd/plot_infrastructure_scatter.py`.
+
+[![Scenes without crossing infrastructure against unmarked crossings, 16 countries](docs/images/infrastructure_scatter.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/infrastructure_scatter.html)
+
+[![The same without Bangladesh, all countries named](docs/images/infrastructure_scatter_zoom.png)](https://htmlpreview.github.io/?https://github.com/crowd-dataset/crowd-jaywalking/blob/main/docs/images/infrastructure_scatter_zoom.html)
+
+* Over the 16 countries, Pearson r = 0.95 and Spearman ρ = 0.82; without Bangladesh, r = 0.87 and ρ = 0.78. So the relation does not rest on Bangladesh alone.
+* Indonesia, Thailand and South Africa sit with Vietnam: few unmarked crossings in total, but many scenes without crossing infrastructure. Türkiye is the exception: many unmarked crossings (135), but only 10 scenes without infrastructure.
+* Both counts come from the same marking check, and scenes are counted only where someone crossed, so part of the relation is built in. An audit of the same streets that does not depend on anyone crossing would separate them.
+
 ### How people move when they cross without a marking
 
 For each person who crossed, with or without a marking, the movement is measured from the boxes of their track. The camera moves and people are at different distances, so movement is measured in the image, in the person's own body height (the median height of their box) per second:
@@ -333,7 +344,7 @@ Copy-Item .\default.config .\config
 Copy-Item .\default.secret .\secret      # only for downloading CROWD videos
 ```
 
-Edit `config` for paths and runs. When `default.config` gains settings, add them to `config` too: a `config` that lacks an entry of `default.config` stops the run. To try a different method value, add that setting to `config` (see the [configuration reference](#configuration-reference)); the run logs every such override. `secret` holds `ftp_username`, `ftp_password`, and optionally `ftp_token` for the CROWD file server. Every setting is described in the [configuration reference](#configuration-reference).
+Edit `config` for paths and runs. When `default.config` gains settings, add them to `config` too: a `config` that lacks an entry of `default.config` stops the run. To try a different method value, add that setting to `config` (the method's values are in `scripts/core/method.py`); the run logs every such override. `secret` holds `ftp_username`, `ftp_password`, and optionally `ftp_token` for the CROWD file server. Every setting of `default.config` is described in the [configuration reference](#configuration-reference).
 
 ### 3. Data
 
@@ -355,7 +366,8 @@ Edit `config` for paths and runs. When `default.config` gains settings, add them
 | Crossings per country | `uv run python scripts/crowd/plot_country_crossings.py <results folder>` | Writes `crossings_by_country.png` and `.csv` into the results folder; `--table <csv> --output <png>` plots a country table instead, `--countries` picks and orders the countries, `--html` also writes an interactive `.html` (needs `uv run --with plotly`) |
 | Total against jaywalking crossings | `uv run python scripts/crowd/plot_crossing_scatter.py <results folder> [<results folder> ...]` | Scatter plot, one point per country, over one or more runs; `--per-hour` divides both axes by the hours of footage; `--output` sets the file; `--table <csv>` plots a country table instead, `--compare <csv>` adds a second table (such as the 4-bit run) as open circles with arrows, `--html` also writes an interactive `.html` (needs `uv run --with plotly`) |
 | Summarise finished runs | `python3 -I scripts/crowd/summarise_runs.py summary.json --root results --run <run>=<selection.csv> [--run ...]` | Run where the results are; reads only and needs only the standard library. Per-segment counts, the segments each run planned and finished, and the movement of the people who crossed, as one small JSON per machine |
-| Country tables | `uv run python scripts/crowd/country_tables.py summary_*.json --output-dir docs` | Merges the summaries (each segment once) into `crossings_by_country.csv`, `jaywalking_rates.csv` and `crossing_movement.csv` |
+| Country tables | `uv run python scripts/crowd/country_tables.py summary_*.json --output-dir docs` | Merges the summaries (each segment once) into `crossings_by_country.csv`, `jaywalking_rates.csv`, `crossing_movement.csv` and `infrastructure_by_country.csv` |
+| Infrastructure figures | `uv run --with plotly python scripts/crowd/plot_infrastructure_scatter.py docs/infrastructure_by_country.csv --output docs/images/infrastructure_scatter.png --html` | Scenes without crossing infrastructure against unmarked crossings, one point per country; `--exclude Bangladesh` for the zoomed plot, `--label-only` names only the given countries |
 | Jaywalking rates and movement figures | `uv run --with plotly python scripts/crowd/plot_country_analysis.py docs/jaywalking_rates.csv docs/crossing_movement.csv --output-dir docs/images --html` | The rate per country with 95% intervals and what the detected crossings were (`jaywalking_rate`), and the movement of people crossing without a marking and at one (`crossing_movement`); `--html` also writes interactive versions |
 | Keypoints of the people who crossed without a marking | `uv run python scripts/crowd/run_keypoints.py <results folder> [...] --output <folder>` | YOLO11 pose on crops around each `JAYWALKING` person's track; keypoints per frame and head and body measures per person (see [Keypoints](#keypoints-of-the-people-who-crossed-without-a-marking)) |
 | Clips to check by eye | `uv run python scripts/crowd/make_verification_clips.py <results folder>` | A random sample per country of crossings without zebra crossing or light, at one, and not confirmed, as clips with the person's box; `index.csv` links each to YouTube |
@@ -373,14 +385,9 @@ Tools from the earlier designs are still available: `scripts/crossing/train_jaad
 
 ## Configuration reference
 
-Settings live in two places. Paths are relative to the repository root unless absolute. `null` means unset. Fractions of the image are of its width (x) or height (y). Durations in seconds are converted to frames at the video's frame rate.
+The settings of `default.config` (copy it to `config` and edit that). Paths are relative to the repository root unless absolute. `null` means unset.
 
-* **`default.config`** (copied to `config`): what you set for your machine and run, listed first.
-* **`scripts/core/method.py`**: the method's fixed values, the ones the results in this README were made with. They are not in `default.config`. To change one, add an entry with the same name to `config`; it overrides the code value, is validated like any other setting, and the run logs a warning naming it. An entry in `config` that is neither kind is ignored with a warning.
-
-### Settings in `default.config`
-
-#### Logging and run selection
+### Logging and run selection
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
@@ -396,7 +403,7 @@ Settings live in two places. Paths are relative to the repository root unless ab
 | `crowd_max_segments` | `0` | Process at most this many segments; `0` processes all |
 | `crowd_vehicle_types` | `[0]` | CROWD vehicle type codes to process, from the `vehicle_type` column of `mapping.csv`: `0` car, `1` bus, `2` truck, `3` two-wheeler, `4` bicycle, `5` automated car, `6` electric scooter, `7` monowheel, `8` emergency vehicle. The default keeps car footage only, because the method looks down the road the camera car drives on. `null` processes every type. Applied before `crowd_max_segments`; segments without a type in the mapping are left out |
 
-#### Paths
+### Paths
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
@@ -411,7 +418,7 @@ Settings live in two places. Paths are relative to the repository root unless ab
 | `source_annotations` | `"annotations.csv"` | Human video labels (`video_id,filename,label`, label `Yes`, `No`, or other) |
 | `annotations` | `"annotations_with_splits.csv"` | The same labels with frozen splits, written by `scripts/evaluation/prepare_splits.py` |
 
-#### Models and GPU
+### Models and GPU
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
@@ -426,7 +433,7 @@ Settings live in two places. Paths are relative to the repository root unless ab
 | `vlm_cache_dir` | `null` | Hugging Face cache folder; `null` uses the normal cache |
 | `vlm_local_files_only` | `false` | `true` never downloads weights |
 
-#### CROWD
+### CROWD
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
@@ -447,7 +454,7 @@ Settings live in two places. Paths are relative to the repository root unless ab
 | `crowd_bbox_ftp_aliases` | `["data"]` | File server aliases searched for `crowd_bbox_ftp_folder`; `data` serves `/media/salam/crowd-tue-3` |
 | `crowd_bbox_download_dir` | `"data/crowd_bbox"` | Where downloaded track CSVs are kept; reused by later runs |
 
-#### Stage 3: country law
+### Stage 3: country law
 
 | Setting | Default | Meaning and allowed values |
 | --- | --- | --- |
@@ -457,184 +464,6 @@ Settings live in two places. Paths are relative to the repository root unless ab
 | `jaywalking_law_country` | `null` | Country for runs without location metadata (JAAD): ISO alpha-3 code or name, for example `"CAN"`, `"Ukraine"`. CROWD segments always use their own `mapping.csv` country |
 | `jaywalking_law_state` | `null` | State or province with it (matters for the United States, for example `"TX"`) |
 | `jaywalking_law_locality` | `null` | City with it (for example `"New York"`) |
-
-### Method settings in `scripts/core/method.py`
-
-#### Tracking
-
-| Setting | Default | Meaning and allowed values |
-| --- | --- | --- |
-| `bbox_tracker` | `"configs/botsort.yaml"` | BoT-SORT tracker settings (2 s track buffer, ReID) |
-| `min_confidence` | `0.0` | Detection confidence passed to the tracker, 0 to 1. Stage 1 itself keeps boxes with confidence of at least 0.7, as crowd-city does |
-| `iou` | `0.7` | Non maximum suppression IoU threshold of the detector, 0 to 1 |
-
-#### Crossing decision
-
-| Setting | Default | Meaning and allowed values |
-| --- | --- | --- |
-| `crossing_decision_mode` | `"crowd_city"` | How stage 1 decides crossings. `"crowd_city"`: crowd-city's crossing decision (current method; `crowd_city_crossing_rule` below chooses the rule). `"classifier"`: the JAAD trained classifier and gate below. `"rules"`: this project's own rule detector (the corridor settings below) |
-| `crossing_vlm_check` | `true` | Ask the VLM whether each candidate really crosses; only a clear YES continues. `true` or `false` |
-| `crossing_vlm_check_version` | `"v3"` | Crossing check prompt. `"v1"`: crosses any carriageway. `"v2"`: whole-track wording. `"v3"`: crosses the camera car's road, in front of the car |
-| `crossing_rescue_min_first_stage` | `null` | Classifier mode only: also send first stage rejections with at least this probability to the VLM crossing check. Number 0 to 1, or `null` (off). Set together with `crossing_rescue_min_gate` |
-| `crossing_rescue_min_gate` | `null` | Minimum gate probability for a rescued track. Number 0 to 1, or `null` |
-| `crowd_city_crossing_rule` | `"road_crossing"` | Which crowd-city rule `"crowd_city"` mode applies. `"road_crossing"`: crowd-city's default, which also needs the feet on the road (SegFormer) and a plausible walking pace. `"detector"`: its older box-only detector. Both join broken tracks first |
-| `crowd_city_segmentation_model` | `"nvidia/segformer-b2-finetuned-cityscapes-1024-1024"` | SegFormer checkpoint that reads the surface under the feet |
-| `crowd_city_segmentation_device` | `"auto"` | Device for SegFormer: `"auto"`, `"cuda"`, `"cpu"` |
-| `crowd_city_segmentation_batch_size` | `8` | SegFormer batch size |
-| `crowd_city_segmentation_input_width`, `crowd_city_segmentation_input_height` | `1024`, `512` | Frame size fed to SegFormer |
-| `crowd_city_segmentation_min_confidence` | `0.5` | Minimum SegFormer confidence of a pixel to count toward the surface under the feet |
-| `crowd_city_segmentation_coarse_hz`, `crowd_city_segmentation_refine_hz` | `1`, `4` | Frames per second sampled along a track, and around the moments it enters and leaves the road |
-| `crowd_city_segmentation_store` | `"data/crowd_segmentation"` | Where the SegFormer surface labels of each CROWD segment are kept, in crowd-city's store format (v5: `index/<video>_<start>_<fps>.parquet` and `manifest/*.json`, one entry per CROWD detection file), so a segment is segmented once, by this project or by crowd-city; `null` keeps none. Share it with crowd-city through `scripts/crowd/sync_segmentation.py` |
-
-#### Classifier mode (`crossing_decision_mode: "classifier"`)
-
-| Setting | Default | Meaning and allowed values |
-| --- | --- | --- |
-| `crossing_classifier_model` | `"results/jaad_crossing_classifier_yolo11x/crossing_classifier.joblib"` | Trained first stage classifier |
-| `crossing_classifier_results` | `"results/jaad_crossing_classifier_yolo11x"` | Output folder of `scripts/crossing/train_jaad_crossing_classifier.py` |
-| `crossing_classifier_min_precision` | `0.9` | Training picks the threshold with at least this cross validated precision, 0 to 1 |
-| `crossing_classifier_cv_folds` | `5` | Grouped cross validation folds (integer, at least 2) |
-| `crossing_classifier_threshold_step` | `0.01` | Step of the threshold search, 0 to 1 |
-| `crossing_classifier_random_seed` | `42` | Random seed (integer) |
-| `crossing_classifier_logistic_c_values` | `[0.1, 1.0, 10.0]` | Logistic regression regularisation values tried |
-| `crossing_classifier_gradient_learning_rates` | `[0.05, 0.1]` | Gradient boosting learning rates tried |
-| `crossing_classifier_gradient_max_leaf_nodes` | `[7, 15]` | Gradient boosting leaf counts tried |
-| `crossing_classifier_fallback_to_rules` | `false` | Use the rule detector when the classifier file is missing (`true`), or stop (`false`) |
-| `crossing_classifier_min_track_frames` | `5` | Shortest track scored by the classifier (frames) |
-| `crossing_gate_model` | `"results/jaad_crossing_gate_yolo11x/crossing_gate.joblib"` | High precision gate that must also accept a classifier crossing. `null` disables it |
-| `crossing_gate_results` | `"results/jaad_crossing_gate_yolo11x"` | Output folder of `scripts/crossing/train_crossing_gate.py` |
-| `crossing_gate_min_precision` | `0.95` | Gate tier used at inference; must be one of `crossing_gate_precision_tiers` |
-| `crossing_gate_precision_tiers` | `[0.98, 0.95, 0.9]` | Precision tiers the gate threshold is fitted for; each person records the strictest tier it meets |
-| `crossing_gate_min_accepted` | `30` | Fewest training tracks a tier must accept (integer) |
-| `crossing_gate_cv_folds` | `5` | Grouped cross validation folds of the gate |
-| `crossing_gate_learning_rate` | `0.05` | Gate gradient boosting learning rate |
-| `crossing_gate_max_leaf_nodes` | `15` | Gate gradient boosting leaf count |
-| `crossing_gate_random_seed` | `42` | Gate random seed |
-| `crossing_gate_camera_motion` | `true` | Train and run the gate with camera compensated motion (BoT-SORT's GMC removed from the foot path). `true` or `false` |
-| `crossing_min_scene_x_range` | `0.2` | Classifier mode: minimum sideways motion relative to the scene, as a fraction of the image width; `null` disables the rule |
-
-#### Rule detector and track features (`"rules"` and `"classifier"` modes)
-
-These settings describe the road corridor and the filters of this project's own rule detector, whose measurements are also features of the classifier. The `"crowd_city"` mode uses crowd-city's built-in values instead.
-
-| Setting | Default | Meaning and allowed values |
-| --- | --- | --- |
-| `road_left`, `road_right` | `0.45`, `0.55` | Left and right edge of the road corridor at the feet, fractions of the image width |
-| `boundary_tolerance` | `0.0` | Margin added to the corridor edges, fraction of the width |
-| `perspective_corridor_enabled` | `true` | Use a trapezoid corridor that widens towards the camera instead of the straight strip |
-| `road_top_y`, `road_bottom_y` | `0.35`, `1.0` | Image heights (fraction) of the top and bottom of the trapezoid |
-| `road_top_left`, `road_top_right` | `0.45`, `0.55` | Corridor edges at `road_top_y` |
-| `road_bottom_left`, `road_bottom_right` | `0.3`, `0.7` | Corridor edges at `road_bottom_y` |
-| `min_track_seconds` | `0.33` | Shortest track considered |
-| `min_road_seconds` | `0.1` | Shortest time inside the corridor |
-| `max_track_gap_seconds` | `1.0` | A longer gap splits one tracker ID into separate tracks |
-| `partial_crossing_enabled` | `true` | Accept a track that enters the corridor from one side and leaves the view before reaching the other side |
-| `partial_exit_min_x_range` | `0.38` | Minimum sideways travel of such a partial crossing, fraction of the width |
-| `partial_exit_min_direction_consistency` | `0.85` | Minimum share of motion in one direction for a partial crossing, 0 to 1 |
-| `strong_complete_override_enabled` | `true` | Let long, wide, consistent crossings bypass the weak track filters |
-| `strong_complete_min_seconds` | `4.0` | Minimum duration of such a strong crossing |
-| `strong_complete_min_x_range` | `0.45` | Minimum sideways travel of a strong crossing |
-| `strong_complete_min_direction_consistency` | `0.85` | Minimum direction consistency of a strong crossing, 0 to 1 |
-| `min_crossing_x_range` | `0.14` | Minimum sideways travel of any crossing |
-| `max_crossing_speed_per_frame` | `null` | Reject faster sideways motion (fraction of the width per frame); `null` means no limit |
-| `low_x_range`, `low_x_min_road_seconds` | `0.3`, `0.67` | A crossing with less travel than `low_x_range` needs at least this time in the corridor |
-| `weak_x_range`, `long_weak_road_seconds` | `0.64`, `3.0` | A crossing with less travel than `weak_x_range` that stays longer than this in the corridor is rejected as loitering |
-| `weak_y_jitter_x_range`, `weak_y_jitter_motion`, `weak_y_jitter_height` | `0.5`, `0.3`, `0.22` | Reject small tracks (height below the last value) with little sideways travel and a lot of vertical jitter |
-| `jitter_road_seconds` | `1.333333` | Time in the corridor after which vertical jitter also rejects wider crossings (below `large_lateral_x_range`) |
-| `tiny_long_track_x_range`, `tiny_long_track_height`, `tiny_long_track_road_seconds` | `0.36`, `0.12`, `1.666667` | Reject tiny, distant boxes with little travel that stay long in the corridor |
-| `tiny_no_static_height`, `tiny_no_static_width`, `tiny_no_static_min_road_seconds` | `0.12`, `0.026`, `0.333333` | Reject tiny boxes when no static objects are available to check camera motion |
-| `no_static_tiny_min_road_seconds`, `no_static_tiny_fast_speed` | `0.166667`, `0.006` | Shortest corridor time and fastest sideways speed allowed for such tiny boxes |
-| `slender_track_width`, `slender_track_height` | `0.05`, `0.26` | Boxes narrower and shorter than these count as slender (often poles or partial detections) |
-| `slender_track_min_road_seconds`, `slender_track_max_road_seconds` | `0.166667`, `1.633333` | Corridor time range in which slender boxes are checked |
-| `no_static_slender_height`, `no_static_slender_max_road_seconds` | `0.24`, `0.666667` | Slender boxes without static references: maximum height and corridor time |
-| `slender_static_min_relative_x_range` | `0.13` | Minimum motion of a slender box relative to static objects |
-| `large_lateral_x_range`, `large_lateral_tiny_height` | `0.56`, `0.105` | Reject very wide travel by a very small box (usually a tracking mix-up) |
-| `min_static_shared_seconds` | `0.27` | Shortest overlap with static objects (traffic lights, signs, hydrants, benches: YOLO classes 9 to 13) for a camera motion check |
-| `camera_static_x_range` | `0.25` | Static objects moving at least this far sideways mean the camera itself turns |
-| `camera_ratio_threshold` | `0.6` | Ratio of static to person motion above which the person's motion is attributed to the camera |
-| `camera_min_shared_track_ratio` | `0.25` | Share of the person's frames that must overlap a static object for that check |
-| `camera_static_relative_x_range`, `camera_static_height` | `0.18`, `0.15` | While the camera moves: reject small boxes moving less than this relative to static objects |
-| `camera_static_tiny_relative_x_range`, `camera_static_tiny_height` | `0.12`, `0.19` | The same check for tiny boxes |
-| `camera_tiny_height`, `camera_min_road_seconds` | `0.15`, `0.166667` | While the camera moves: reject boxes below this height that spend at least this time in the corridor |
-| `min_relative_x_range` | `0.01` | Minimum person motion relative to static objects for any crossing |
-| `rider_min_shared_seconds`, `rider_min_continuous_shared_seconds`, `rider_shared_run_gap_seconds` | `0.133333`, `0.4`, `0.066667` | A person sharing at least this time (and this long continuously, allowing short gaps) with a bicycle, motorcycle, or vehicle box may be a rider |
-| `rider_min_vehicle_width_ratio`, `rider_min_vehicle_width_ratio_frames` | `0.5`, `0.65` | The vehicle must be at least this wide relative to the person, on at least this share of the frames |
-| `rider_distance_relative_threshold`, `rider_proximity_ratio` | `0.8`, `0.7` | Person and vehicle centres closer than this (in person heights) on at least this share of frames |
-| `rider_alpha_x`, `rider_beta_y`, `rider_gamma_y` | `0.75`, `0.08`, `1.4` | Window, in person widths and heights, where the vehicle must sit relative to the person |
-| `rider_colocation_ratio` | `0.7` | Share of shared frames in that window that marks a rider |
-| `rider_similarity_threshold`, `rider_similarity_ratio`, `rider_min_motion_seconds`, `rider_motion_colocation_min` | `0.4`, `0.5`, `0.1`, `0.5` | Motion similarity test: person and vehicle moving in the same direction (cosine above the threshold) on enough frames also marks a rider |
-| `rider_short_shared_seconds`, `rider_short_similarity_ratio`, `rider_short_displacement` | `0.266667`, `0.8`, `0.12` | Stricter test for short overlaps |
-
-#### Approach review
-
-| Setting | Default | Meaning and allowed values |
-| --- | --- | --- |
-| `approach_review_seconds` | `6.0` | How many seconds before the crossing the first frame is taken. The window never starts before the first frame of the video |
-| `approach_review_end_seconds` | `0.5` | Seconds before the crossing at which the last frame is taken; must be below `approach_review_seconds` |
-| `approach_review_frames` | `4` | Moments sampled between the two, each sent as a full scene and a road ahead view |
-| `approach_review_crop_bottom` | `0.12` | Share of the frame height cut off at the bottom, where a dashcam shows the car's own bonnet and its reflections. At least 0 and below 0.5 |
-
-#### Evidence images
-
-| Setting | Default | Meaning and allowed values |
-| --- | --- | --- |
-| `evidence_sample_positions` | `[0.0, 0.2, 0.4, 0.6, 0.8, 1.0]` | Moments sampled across the evidence window, as fractions of it |
-| `evidence_context_seconds` | `0.5` | Seconds added before and after the crossing |
-| `evidence_infrastructure_span` | `"transition"` | Window of the infrastructure check: `"transition"` (the crossing) or `"track"` (the whole track). `"track"` gave no improvement on JAAD |
-| `evidence_crop_margin` | `0.75` | Margin around the person in the target detail view, as a fraction of the box size |
-| `evidence_max_dimension` | `1280` | Longest side of the saved views, in pixels |
-| `evidence_jpeg_quality` | `90` | JPEG quality of the saved views, 1 to 100 |
-| `evidence_trajectory_enabled` | `true` | Draw the yellow foot path in the trajectory map |
-| `evidence_road_crop_margin` | `0.12` | Margin of the road area crop around the path, fraction of the image |
-| `evidence_control_crop_bottom` | `0.78` | The control tiles cover the image above this height (fraction from the top) |
-| `evidence_control_crop_overlap` | `0.2` | Overlap between neighbouring control tiles, 0 to 1 |
-
-#### VLM
-
-| Setting | Default | Meaning and allowed values |
-| --- | --- | --- |
-| `vlm_prompt_mode` | `"zebra_light_v5"` | Infrastructure prompt: `"zebra_light_v5"` (current: infrastructure only, never judges the person), `"zebra_light_v1"` to `"zebra_light_v4"`, `"baseline_v3"`, `"focused_v5"` |
-| `vlm_max_new_tokens` | `300` | Longest answer |
-| `vlm_task_max_frames` | `4` | Moments sent per VLM call |
-
-#### Decision policy
-
-| Setting | Default | Meaning and allowed values |
-| --- | --- | --- |
-| `permission_cues` | `["marked_crosswalk", "permissive_pedestrian_signal", "traffic_light"]` | Visible cues that make a crossing compliant. Any of `"marked_crosswalk"`, `"permissive_pedestrian_signal"`, `"traffic_light"`, `"authorised_crossing_sign"`, `"crossing_guard_permission"` |
-| `context_scope` | `"scene"` | `"scene"`: a cue seen for any crossing person in the clip counts for every crossing person. `"person"`: only that person's own evidence |
-| `context_scope_window_seconds` | `10.0` | Scene scope only joins crossings at most this many seconds apart (gap between their crossing intervals), so a CROWD segment of many minutes is not one scene. `null` joins the whole clip. On JAAD, 2, 5, and 10 s give the same 23 claims as `null` |
-| `strict_absence` | `true` | A claim needs every infrastructure answer (zebra, traffic light, signals, crossing sign, crossing guard) to be NO for every crossing person in the clip; any YES or UNCERTAIN gives `UNCERTAIN` |
-| `partial_visibility_uncertain` | `false` | `true` turns partial visibility with no visible permission into `UNCERTAIN` |
-| `prohibitive_signal_overrides_crosswalk` | `false` | `true` labels crossing on a red or "do not walk" signal as jaywalking even at a crosswalk. Off, because a red light means a traffic light is present |
-
-#### JAAD evaluation
-
-| Setting | Default | Meaning and allowed values |
-| --- | --- | --- |
-| `jaad_match_iou` | `0.5` | Box overlap that matches a track to a JAAD pedestrian, 0 to 1 |
-| `jaad_min_match_frames` | `5` | Frames that must overlap for a match |
-| `jaad_min_track_coverage` | `0.1` | Share of a JAAD pedestrian's frames a track must cover in the crossing benchmark, 0 to 1 |
-| `jaad_context_sample_size` | `120` | Crossing events sampled for manual context labels; `0` uses all |
-| `jaad_context_sampling_seed` | `42` | Seed of that sample |
-
-#### Labelled video evaluation (earlier designs)
-
-| Setting | Default | Meaning and allowed values |
-| --- | --- | --- |
-| `split_seed` | `42` | Seed of the stratified split |
-| `development_fraction`, `validation_fraction`, `locked_test_fraction` | `0.6`, `0.2`, `0.2` | Split sizes; must add up to 1 |
-| `vlm_comparison_models` | `["Qwen/Qwen3-VL-8B-Instruct", "google/gemma-4-12B-it"]` | Models compared by `scripts/context/compare_jaad_context_models.py` |
-| `vlm_comparison_prompt_modes` | `["baseline_v3", "focused_v5"]` | Prompt modes compared |
-
-#### CROWD
-
-| Setting | Default | Meaning and allowed values |
-| --- | --- | --- |
-| `crowd_download_timeout_seconds` | `20` | Server request timeout |
-| `crowd_download_max_pages` | `500` | Most server index pages crawled to find a video |
-| `crowd_trim_end_margin_seconds` | `1.0` | Seconds cut from the end of a segment (the mapping's end times can overrun the video) |
-| `crowd_audit_random_seed`, `crowd_audit_per_stratum` | `42`, `50` | Seed and size per stratum of `audit_sample.csv`, the people sampled for a manual check |
 
 ## Outputs
 
@@ -670,22 +499,6 @@ To rerun the tracking-only strict mode, set `tracking_model` and `jaad_benchmark
 The first stage classifier alone, on the official JAAD test split (YOLO26x): track match recall 98.6%, crossing precision 87.7%, recall 81.8%, F1 84.6% (TP 157, TN 62, FP 22, FN 35).
 
 `tools/annotators/jaad_front_crossing_annotator.html` and `tools/annotators/jaad_observable_context_annotator.html` are browser tools used to label which pedestrians cross in front of the car and what context is visible; they store progress in the browser and export CSV files.
-
-## Limitations
-
-* **Recall.** About one in five eligible crossers is found. Stage 1 sees only bounding boxes and misses most crossings that do not pass through the middle of the image.
-* **Private property.** In stage 3 the VLM answered "public road" for all 23 JAAD claims, including 9 in JAAD parking lots, so private car parks are not yet excluded reliably.
-* **Designated crossings.** The rule sets judge these as marked crossings or signals, but in the United States and Canada the unmarked crosswalk of an intersection is a legal crossing too. `configs/jaywalking_rules.json` therefore adds a hand-written `supplementary` condition to these two countries (`USA-X1`, `CAN-X1`: crossing at an intersection along the sidewalk lines). It is not from the PDF, `build_jaywalking_rules.py` keeps it on a rebuild, and a YES makes the crossing condition (`USA-R5`, `CAN-R3`) NO, an UNKNOWN makes it UNKNOWN. Other countries may need the same; the law document should define this. Neither check works yet: the VLM answered `USA-X1`/`CAN-X1` NO for all 23 JAAD claims, although JAAD marks every one as an intersection.
-* **Zebra crossing seen only before the crossing.** A person on CROWD footage (Moscow, `2JKoQh0Lv5I` at 2:06) was claimed although they cross on a zebra crossing, confirmed by hand. The camera car had stopped at the stripes: they are visible at the bottom of the frame as the car approaches, but the infrastructure check only sees moments within half a second of the crossing, where they are out of frame or edge-on. The approach review flags such claims for a manual look. It is a flag, not a veto, because the VLM can also see stripes that are not there: on JAAD it flagged 1 of the 23 correct claims (`video_0166`, a painted kerb read as stripes), and no prompt wording tried removed that without also missing the Moscow zebra. Claims reviewed by hand so far on CROWD: San Antonio (stage 3 label wrong) and this one (stage 2 claim wrong).
-* **Bangladesh.** The PDF does not cover it, so `BGD` is a rule set written by hand (marked `added_by_hand`, kept when the PDF is rebuilt) from the Road Transport Act 2018, section 42(3): every road user must use the zebra crossing, foot overbridge, underpass or similar facility "if any" to cross, with up to one month in prison or BDT 10,000 under section 85. All four conditions must hold: public road, crossing the road, a crossing facility available (judged on footage of the approach, so a footbridge in view counts), and not using it. The Act sets no distance, so the facility only has to be in view. The text was read from a mirror of the official law site, not the gazette.
-* **Russia.** The rule file's `RUS` entry has four hand-written conditions from the Traffic Rules (PDD) 4.3 and 1.2, with the Russian text quoted in the file: `RUS-X1` (crossing at an intersection of two roads along the sidewalk lines is lawful; a yard or car park exit is not an intersection), `RUS-X2` (a crossing or intersection in sight, because crossing elsewhere is lawful only when none is), `RUS-X3` (walking in a car park, yard or pavement, not a carriageway), and `RUS-X4` (a pedestrian crossing sign, which marks a crossing there). All four are judged on about 12 s of footage before the crossing (`law_approach_*` method settings). On the 15 Russian claims you reviewed by hand, Qwen3.5-27B agreed with you on 9 to 11 of the conditions X1 to X3, against 6 to 7 for Qwen3-VL-8B, which is why stage 3 uses the 27B model. `RUS-X2` answering NO (road clear, nothing in sight) makes the crossing lawful (point 4.3, right angle crossing), as do `RUS-X1`, `RUS-X3` and `RUS-X4` when they apply. The VLM sees only the footage around and before the crossing, so a NO is weak evidence and the reviewer confirms it from the clip. A `JAYWALKING` label for Russia therefore means that no lawful exception was found, to be confirmed by looking at the clip.
-* **Camera type.** The method assumes a camera in a car. On footage from a bicycle, the first Dutch run claimed four people in Eindhoven's pedestrian centre who were not crossing a road; `crowd_vehicle_types` now keeps such footage out.
-* **Pedestrian-only areas.** The crossing check (`v3`) can pass people walking in car-free squares as road crossings, and on car footage the shared brick area at Amsterdam Centraal is a borderline case. Its prompt is left unchanged because it works on JAAD. A rule-file condition that asks the VLM whether the person is on a road that vehicles use was tried for the Netherlands and removed: it answered YES for all of the first 10 Dutch claims, including four people on a pedestrian plaza (bicycle footage).
-* **Red light crossings** are out of scope: scenes with a traffic light are never claimed, so offenses such as `DEU-T2` cannot be found.
-* **The law document.** Distances to an available crossing are unspecified for 29 countries, there is no table of US states, and six countries have no conditions, so many claims there end as `INSUFFICIENT_EVIDENCE`.
-* **JAAD labels.** Some contradict each other or the images: per pedestrian attributes can say "designated, signalised" where the per frame annotations and the images show neither, and a traffic light in view is marked even when it is far from the crossing.
-* **No country in JAAD.** Stage 3 has only been checked for applying the rules consistently, not for legal correctness on CROWD.
-* A malformed VLM answer stops the run with `VLMError` rather than inventing a label.
 
 ## Repository structure
 

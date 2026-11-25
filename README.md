@@ -255,7 +255,7 @@ Because these are measured in the image of a moving camera, the two groups are c
 
 ### Stage 3 on CROWD: is it jaywalking in law?
 
-Stage 3 (`scripts/law/run_jaywalking_law.py`, Qwen3.5-27B at 4-bit) judged the crossings without a marking of eleven of the sixteen countries against the country's rule set. The evidence images of the runs that kept none were drawn again with `scripts/law/rebuild_evidence.py --fetch`, which cuts each claim clip again from its CROWD video and deletes it afterwards. Bangladesh, China, Japan, France and Denmark, part of India and the last few segments of Sweden and Vietnam are not judged yet.
+Stage 3 (`scripts/law/run_jaywalking_law.py`, Qwen3.5-27B at 4-bit) judged the crossings without a marking of eleven of the sixteen countries against the country's rule set. The evidence images of the runs that kept none were drawn again with `scripts/law/rebuild_evidence.py --fetch`, which cuts each claim clip again from its CROWD video and deletes it afterwards. Where a condition is judged on the approach (Bangladesh's `BGD-R3`), it also saves the approach views to `jaywalking_law/approach_frames`, which stage 3 then uses without the clip. Bangladesh, China, Japan, France and Denmark, part of India and the last few segments of Sweden and Vietnam are not judged yet.
 
 | Country | Without a marking | Judged | `JAYWALKING` | `NOT_JAYWALKING` | `INSUFFICIENT_EVIDENCE` | What decides it |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |

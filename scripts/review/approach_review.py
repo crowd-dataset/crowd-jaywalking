@@ -117,13 +117,53 @@ def find_claims(results_root: str | Path, video_dirs: Iterable[Path] = ()) -> It
                 )
 
 
+def saved_approach_evidence(
+    claim: ClaimRef, settings: dict[str, Any], folder: Path, partial: bool = False
+) -> tuple[list[EvidenceImage], float] | None:
+    """The approach views of a claim saved earlier, or None when the frame rate is unknown or any is missing.
+
+    With ``partial``, the views that were saved are enough (a frame the video could not give is skipped
+    when they are saved), and None means none was.
+    """
+
+    if not claim.fps:
+        return None
+    indices = approach_frame_indices(
+        claim.transition_start_frame, claim.fps, settings["seconds"], settings["end_seconds"], settings["frames"]
+    )
+    stem = claim.key.replace("/", "_")
+    evidence = []
+    for index in indices:
+        full_path, road_path = folder / f"{stem}_{index}_full.jpg", folder / f"{stem}_{index}_road.jpg"
+        if not (full_path.is_file() and road_path.is_file()):
+            if partial:
+                continue
+            return None
+        evidence.append(
+            EvidenceImage(frame_index=index, context_path=full_path, focus_path=full_path, lower_road_path=road_path)
+        )
+    if not evidence:
+        return None
+    return evidence, (claim.transition_start_frame - indices[0]) / claim.fps
+
+
 def approach_evidence(claim: ClaimRef, settings: dict[str, Any], folder: Path) -> tuple[list[EvidenceImage], float]:
-    """Save full scene and road ahead views of the approach; return them and the window length in seconds."""
+    """Save full scene and road ahead views of the approach; return them and the window length in seconds.
+
+    Views already saved in ``folder`` (by ``scripts/law/rebuild_evidence.py`` while the claim clip was
+    there) are used as they are, so the video is not needed again.
+    """
 
     import cv2
 
+    saved = saved_approach_evidence(claim, settings, folder)
+    if saved is not None:
+        return saved
     capture = cv2.VideoCapture(str(claim.video_path))
     if not capture.isOpened():
+        saved = saved_approach_evidence(claim, settings, folder, partial=True)
+        if saved is not None:
+            return saved
         raise FileNotFoundError(f"Cannot open the video of {claim.key}: {claim.video_path}")
     try:
         fps = claim.fps or float(capture.get(cv2.CAP_PROP_FPS) or 30.0)

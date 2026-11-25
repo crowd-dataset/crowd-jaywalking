@@ -13,6 +13,8 @@ except ImportError:
     cv2 = None
 
 from scripts.review.approach_review import (
+    ClaimRef,
+    approach_evidence,
     approach_frame_indices,
     find_claims,
     run_approach_review,
@@ -123,3 +125,22 @@ class ApproachReviewTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(cv2 is not None, "OpenCV is not installed in this test environment")
+class SavedApproachTests(unittest.TestCase):
+    def test_saved_views_are_used_once_the_video_is_gone(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            video = root / "clip.mp4"
+            _write_video(video)
+            claim = ClaimRef(".", "seg", 3, video, 10.0, 10.0, 100)
+            first, window = approach_evidence(claim, SETTINGS, root / "frames")
+            video.unlink()
+            again, window_again = approach_evidence(claim, SETTINGS, root / "frames")
+            self.assertEqual([e.frame_index for e in again], [e.frame_index for e in first])
+            self.assertEqual([e.lower_road_path for e in again], [e.lower_road_path for e in first])
+            self.assertEqual(window_again, window)
+            # Without saved views and without the video there is nothing to judge.
+            with self.assertRaises(FileNotFoundError):
+                approach_evidence(ClaimRef(".", "seg", 4, video, 10.0, 10.0, 100), SETTINGS, root / "frames")
